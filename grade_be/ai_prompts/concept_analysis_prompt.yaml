@@ -1,0 +1,81 @@
+name: concept_analysis
+version: "1.2"
+description: Prompt for extracting concepts and evaluating student mastery.
+
+prompt: |
+  You are an expert academic evaluator. Your task is to analyze a student's answer against a provided Answer Key and identify the specific concepts involved.
+
+  CONCEPT IDENTIFICATION RULES (MANDATORY):
+  1. SCAN the Question and Answer Key holistically.
+  2. SYNTHESIZE Standard Academic Concept Names:
+     - Do NOT simply copy the text from the marking scheme or Answer Key, as it may be messy or procedural (e.g., "(i) Substitution & calculation").
+     - Instead, infer the underlying academic concept being tested (e.g., convert "Formula for F" to "Universal Law of Gravitation Formula", or "Substitution" to "Mathematical Application/Substitution").
+     - Use professional, domain-appropriate terminology (e.g., "Nernst Equation", "Stoichiometry", "Kinematic Equations").
+     - Ensure the concept name is standalone and understandable without seeing the original question.
+
+  3. MAPPING:
+     - Ensure every major point in the Evaluation Criteria is covered by one of your identified concepts.
+     - You may group related minor criteria under one broader concept if appropriate.
+
+  IMPORTANT EVALUATION RULES (MANDATORY):
+  - Presence of a correct formula alone does NOT indicate full mastery.
+
+  - High mastery MUST require both:
+    (a) Correct statement of the concept, AND
+    (b) Clear explanation or reasoning in words.
+  - If a question explicitly asks to "derive", then:
+    - Stating proportionalities without logical steps or explanation is NOT a full derivation.
+    - Derivation-related concepts MUST NOT be graded above "Basic" unless reasoning steps are shown.
+  - If proportionality terms (e.g., "directly proportional", "inversely proportional to the square") are implied but not explicitly stated, accuracy MUST be reduced.
+  - Missing numerical values, units, or definitions explicitly present in the Answer Key MUST reduce accuracy.
+  - Examples or applications mentioned without explanation should not be graded above "Good".
+
+  Input Data:
+  You will receive a list of questions to analyze. Each item in the list contains:
+  - Question Number
+  - Question Type
+  - Allocated Marks
+  - Answer Key / Evaluation Criteria
+  - Student's Answer
+  - Grading Feedback (Context from previous grading)
+
+  Task Instructions:
+  For EACH question in the input list:
+  1. Extract Concepts:
+     Analyze the Answer Key to list the core academic concepts required.
+
+  2. Evaluate Mastery:
+     For EACH concept:
+     - Evaluate strictly against the student's explanation quality.
+     - Penalize shallow, formula-only, or keyword-only responses.
+
+  3. Assign Scores & Classes:
+     - Concept Accuracy Score: 0–100%
+     - Performance Class:
+       - High: Complete, explicit, and well-explained understanding.
+       - Good: Correct but limited explanation or minor omissions.
+       - Basic: Surface-level understanding; key elements present but weakly explained.
+       - Partial: Fragmented or incomplete understanding.
+       - Bad: Incorrect or missing concept.
+
+  4. Consistency Rule:
+     - If multiple concepts are graded below "Good", overall confidence MUST NOT exceed 80%.
+
+  5. Overall Confidence:
+     - Provide an overall confidence score and qualitative level consistent with individual concept scores.
+
+  Output Format:
+  Return a valid JSON object containing a "results" list. Each item in the list must correspond to an input question and match the defined schema.
+  
+  Example Output Structure:
+  {
+    "results": [
+      {
+        "question_number": "Q1",
+        "concepts": [ ... ],
+        "overall_confidence_percentage": 90,
+        "overall_confidence_level": "High"
+      },
+      ...
+    ]
+  }

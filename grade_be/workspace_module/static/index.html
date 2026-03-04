@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini VS Code</title>
+    <style>
+        :root {
+            --bg: #1e1e1e;
+            --sidebar: #252526;
+            --activity-bar: #333333;
+            --top-bar: #3c3c3c;
+            --border: #3e3e42;
+            --text: #cccccc;
+            --accent: #007acc;
+            --active-tab: #1e1e1e;
+            --inactive-tab: #2d2d2d;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Menu Bar */
+        .menu-bar {
+            height: 35px;
+            background: var(--top-bar);
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            font-size: 13px;
+            z-index: 1000;
+        }
+
+        .menu-item {
+            padding: 0 12px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .menu-item:hover {
+            background: #505050;
+        }
+
+        .dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            min-width: 250px;
+            background: var(--sidebar);
+            border: 1px solid var(--border);
+            display: none;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+            z-index: 1001;
+        }
+
+        .menu-item:hover .dropdown {
+            display: block;
+        }
+
+        .dropdown-item {
+            padding: 8px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .dropdown-item:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        .shortcut {
+            font-size: 11px;
+            opacity: 0.6;
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--border);
+            margin: 4px 0;
+        }
+
+        /* Workspace Grid */
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Activity Bar */
+        .activity-bar {
+            width: 50px;
+            background: var(--activity-bar);
+            border-right: 1px solid #222;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 10px;
+            gap: 20px;
+        }
+
+        .activity-icon {
+            font-size: 24px;
+            color: #858585;
+            cursor: pointer;
+        }
+
+        .activity-icon.active {
+            color: white;
+            border-left: 2px solid white;
+            width: 100%;
+            text-align: center;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background: var(--sidebar);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 10px;
+            font-size: 11px;
+            font-weight: bold;
+            color: #bbbbbb;
+            text-transform: uppercase;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sidebar-icons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .sidebar-icon {
+            cursor: pointer;
+            opacity: 0.6;
+            font-size: 14px;
+        }
+
+        .sidebar-icon:hover {
+            opacity: 1;
+        }
+
+        /* File Tree */
+        .file-tree {
+            flex: 1;
+            overflow-y: auto;
+            padding-top: 5px;
+        }
+
+        .tree-node {
+            padding-left: 15px;
+        }
+
+        .tree-content {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            cursor: pointer;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        .tree-content:hover {
+            background: #2a2d2e;
+        }
+
+        .tree-content.active {
+            background: #37373d;
+            color: white;
+        }
+
+        .folder-icon {
+            color: #dcb67a;
+        }
+
+        .file-icon {
+            color: #519aba;
+        }
+
+        /* Main Editor Area */
+        .editor-pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .tabs {
+            background: var(--sidebar);
+            height: 35px;
+            border-bottom: 1px solid #111;
+            display: flex;
+            align-items: center;
+        }
+
+        .tab {
+            padding: 0 15px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            font-size: 12px;
+            background: var(--inactive-tab);
+            border-right: 1px solid #1e1e1e;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .tab.active {
+            background: var(--bg);
+            border-top: 1px solid var(--accent);
+            color: white;
+        }
+
+        .tab-close {
+            margin-left: 10px;
+            opacity: 0.6;
+            font-size: 14px;
+        }
+
+        .tab-close:hover {
+            opacity: 1;
+            color: #ff5f56;
+        }
+
+        #editor {
+            flex: 1;
+            background: var(--bg);
+            color: #d4d4d4;
+            border: none;
+            resize: none;
+            padding: 15px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .run-btn-container {
+            position: absolute;
+            top: 40px;
+            right: 25px;
+            z-index: 50;
+        }
+
+        .run-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .run-btn:hover {
+            background: #218838;
+        }
+
+        /* Terminal View */
+        .terminal {
+            height: 250px;
+            background: #000;
+            border-top: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .terminal-header {
+            height: 35px;
+            background: var(--sidebar);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            color: #888;
+            border-bottom: 1px solid var(--border);
+            text-transform: uppercase;
+        }
+
+        .term-tab.active {
+            color: white;
+            border-bottom: 1px solid white;
+        }
+
+        .terminal-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        #output {
+            flex: 1;
+            padding: 12px;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            color: #00ff00;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        .terminal-side {
+            width: 300px;
+            background: var(--sidebar);
+            border-left: 1px solid var(--border);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .terminal-side label {
+            font-size: 9px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        #stdin {
+            flex: 1;
+            background: #1e1e1e;
+            color: #eee;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 10px;
+            resize: none;
+            font-size: 12px;
+            outline: none;
+        }
+
+        /* Welcome Screen Overlay */
+        #welcomeOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .welcome-box {
+            width: 450px;
+            text-align: center;
+        }
+
+        .welcome-logo {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .welcome-title {
+            font-size: 32px;
+            margin-bottom: 40px;
+            color: #fff;
+        }
+
+        .welcome-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .welcome-btn {
+            background: #333;
+            border: 1px solid #444;
+            color: #ccc;
+            padding: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            text-align: left;
+            padding-left: 20px;
+        }
+
+        .welcome-btn:hover {
+            background: #3e3e3e;
+            border-color: var(--accent);
+        }
+
+        .welcome-btn span {
+            color: var(--accent);
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .expanded .children {
+            display: block;
+        }
+
+        .collapsed .children {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Top Menu -->
+    <div class="menu-bar">
+        <div class="menu-item">
+            File
+            <div class="dropdown">
+                <div class="dropdown-item" onclick="pickFolder()"><span>Open Folder...</span> <span
+                        class="shortcut">Ctrl+K Ctrl+O</span></div>
+                <div class="divider"></div>
+                <div class="dropdown-item" onclick="promptCreateWorkspace()"><span>Create New Workspace...</span></div>
+                <div class="divider"></div>
+                <div class="dropdown-item" onclick="saveFile()"><span>Save</span> <span class="shortcut">Ctrl+S</span>
+                </div>
+                <div class="dropdown-item" onclick="downloadFile()"><span>Download</span></div>
+                <div class="divider"></div>
+                <div class="dropdown-item" onclick="showWelcome()"><span>Close Workspace</span></div>
+            </div>
+        </div>
+        <div class="menu-item">Edit</div>
+        <div class="menu-item">Selection</div>
+        <div class="menu-item">View</div>
+        <div class="menu-item">Go</div>
+        <div class="menu-item">Run</div>
+        <div class="menu-item">Terminal</div>
+        <div class="menu-item">Help</div>
+    </div>
+
+    <!-- Welcome Overlay -->
+    <div id="welcomeOverlay">
+        <div class="welcome-box">
+            <div class="welcome-logo">💠</div>
+            <h1 class="welcome-title">Visual Studio Code</h1>
+            <div class="welcome-actions">
+                <button class="welcome-btn" onclick="pickFolder()"><span>+</span> Open existing folder...</button>
+                <button class="welcome-btn" onclick="promptCreateWorkspace()"><span>💠</span> Create new workspace
+                    folder...</button>
+            </div>
+            <p style="margin-top: 40px; font-size: 11px; color: #555;">Pixel perfect VS Code experience locally.</p>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <!-- Activity Bar -->
+        <div class="activity-bar">
+            <div class="activity-icon active">📄</div>
+            <div class="activity-icon">🔍</div>
+            <div class="activity-icon">🌿</div>
+            <div class="activity-icon">🐞</div>
+            <div class="activity-icon">📦</div>
+        </div>
+
+        <!-- Sidebar Explorer -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <span id="workspaceName">Explorer</span>
+                <div class="sidebar-icons">
+                    <span class="sidebar-icon" onclick="promptCreate('file')" title="New File">📄+</span>
+                    <span class="sidebar-icon" onclick="promptCreate('folder')" title="New Folder">📁+</span>
+                    <span class="sidebar-icon" onclick="refreshTree()" title="Refresh">🔄</span>
+                </div>
+            </div>
+            <div id="fileTree" class="file-tree"></div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="editor-pane">
+            <div class="tabs">
+                <div class="tab active" id="activeTab">
+                    <span id="tabTitle">Welcome</span>
+                </div>
+            </div>
+
+            <div class="run-btn-container">
+                <button class="run-btn" onclick="runFile()">▶ RUN CODE</button>
+            </div>
+
+            <textarea id="editor" spellcheck="false" placeholder="# Select a file or Open Workspace..."></textarea>
+
+            <!-- Terminal Section -->
+            <div class="terminal">
+                <div class="terminal-header">
+                    <div class="term-tab active">Terminal</div>
+                    <div class="term-tab">Output</div>
+                    <div class="term-tab">Debug Console</div>
+                </div>
+                <div class="terminal-content">
+                    <div id="output">Welcome to the integrated terminal. Open a folder to begin.</div>
+                    <div class="terminal-side">
+                        <label>USER INPUT (STDIN)</label>
+                        <textarea id="stdin" placeholder="Type inputs here for Python's input() prompt..."></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ACTIVE_FILE = "";
+        let SELECTED_PATH = "";
+        let SELECTED_TYPE = "";
+
+        // UI Initialization
+        window.onload = async () => {
+            const res = await fetch('/list_files');
+            const data = await res.json();
+            if (data.status === "success" && data.current_dir) {
+                hideWelcome();
+                renderTree(data.files, data.current_dir);
+            }
+        };
+
+        function showWelcome() {
+            document.getElementById('welcomeOverlay').classList.remove('hidden');
+            SELECTED_PATH = "";
+            SELECTED_TYPE = "";
+        }
+        function hideWelcome() { document.getElementById('welcomeOverlay').classList.add('hidden'); }
+
+        // Core Actions
+        async function pickFolder() {
+            const res = await fetch('/pick_folder');
+            const data = await res.json();
+            if (data.status === "success") {
+                hideWelcome();
+                refreshTree();
+            }
+        }
+
+        async function promptCreateWorkspace() {
+            const name = prompt("Enter a name for the new Workspace folder:");
+            if (!name) return;
+            const res = await fetch('/create_folder_workspace', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            if (res.ok) {
+                hideWelcome();
+                refreshTree();
+            }
+        }
+
+        async function refreshTree() {
+            const res = await fetch('/list_files');
+            const data = await res.json();
+            if (data.status === "success") {
+                renderTree(data.files, data.current_dir);
+            }
+        }
+
+        function renderTree(nodes, rootPath) {
+            document.getElementById('workspaceName').innerText = rootPath.split(/[\\/]/).pop();
+            const container = document.getElementById('fileTree');
+            container.innerHTML = "";
+
+            function build(items, parent) {
+                items.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = "tree-node";
+
+                    const content = document.createElement('div');
+                    content.className = "tree-content";
+                    if (item.path === SELECTED_PATH) content.classList.add('active');
+
+                    const icon = document.createElement('span');
+                    if (item.type === 'folder') {
+                        icon.innerText = "📁";
+                        icon.className = "folder-icon";
+                        content.onclick = (e) => {
+                            SELECTED_PATH = item.path;
+                            SELECTED_TYPE = "folder";
+                            div.classList.toggle('expanded');
+                            // Use a lighter refresh to avoid losing expanded state or just re-render highlights
+                            refreshTreeHighlights();
+                            e.stopPropagation();
+                        };
+                    } else {
+                        icon.innerText = "📄";
+                        icon.className = "file-icon";
+                        content.onclick = (e) => {
+                            SELECTED_PATH = item.path;
+                            SELECTED_TYPE = "file";
+                            loadFile(item.path);
+                            refreshTreeHighlights();
+                            e.stopPropagation();
+                        };
+                    }
+
+                    content.appendChild(icon);
+                    content.append(" " + item.name);
+                    div.appendChild(content);
+
+                    if (item.children && item.children.length > 0) {
+                        const childContainer = document.createElement('div');
+                        childContainer.className = "children";
+                        build(item.children, childContainer);
+                        div.appendChild(childContainer);
+                    }
+                    parent.appendChild(div);
+                });
+            }
+            build(nodes, container);
+        }
+
+        function refreshTreeHighlights() {
+            // Brute force re-render for simplicity, but in a real app logic should be more granular
+            refreshTree();
+        }
+
+        async function loadFile(path) {
+            ACTIVE_FILE = path;
+            const res = await fetch('/view_file?file_name=' + encodeURIComponent(path));
+            const data = await res.json();
+            if (res.ok) {
+                document.getElementById('editor').value = data.code_content;
+                document.getElementById('tabTitle').innerText = path.split('/').pop();
+            }
+        }
+
+        async function saveFile() {
+            if (!ACTIVE_FILE) return;
+            const res = await fetch('/save_file', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    file_name: ACTIVE_FILE,
+                    code_content: document.getElementById('editor').value
+                })
+            });
+            if (res.ok) log("File saved successfully.");
+        }
+
+        async function runFile() {
+            if (!ACTIVE_FILE) return alert("Open a file first.");
+            await saveFile(); // Auto save
+            const out = document.getElementById('output');
+            out.innerText += `\n> Running Python on ${ACTIVE_FILE}...\n`;
+
+            const res = await fetch('/run_file', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    file_name: ACTIVE_FILE,
+                    stdin_input: document.getElementById('stdin').value
+                })
+            });
+            const data = await res.json();
+            if (data.stdout) out.innerText += data.stdout;
+            if (data.stderr) out.innerHTML += `<span style='color: #ff5f56'>${data.stderr}</span>`;
+            out.innerText += `\n[Terminated with exit code ${data.returncode}]\n`;
+            out.scrollTop = out.scrollHeight;
+        }
+
+        function promptCreate(type) {
+            let base = "";
+            if (SELECTED_TYPE === "folder") {
+                base = SELECTED_PATH;
+            } else if (SELECTED_TYPE === "file") {
+                const parts = SELECTED_PATH.split('/');
+                parts.pop();
+                base = parts.join('/');
+            }
+
+            const prefix = base ? base + '/' : '';
+            const locationName = base || "root";
+
+            const nameInput = prompt(`Enter name for the new ${type} (inside ${locationName}):`);
+            if (!nameInput) return;
+
+            const fullName = prefix + nameInput;
+
+            fetch('/create_item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: fullName, type })
+            }).then(r => r.ok ? refreshTree() : r.json().then(e => alert(e.detail)));
+        }
+
+        function log(msg) {
+            const out = document.getElementById('output');
+            out.innerText += `\n[Info] ${msg}\n`;
+            out.scrollTop = out.scrollHeight;
+        }
+
+        function downloadFile() {
+            if (!ACTIVE_FILE) return;
+            window.location.href = '/download_file?file_name=' + encodeURIComponent(ACTIVE_FILE);
+        }
+
+        // Shortcuts
+        document.addEventListener('keydown', e => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                saveFile();
+            }
+        });
+    </script>
+</body>
+
+</html>

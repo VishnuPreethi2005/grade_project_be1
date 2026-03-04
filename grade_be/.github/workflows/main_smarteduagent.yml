@@ -1,0 +1,111 @@
+name: Build & Deploy SmartEduAgent to ACR (Web + Worker via ACR, Beat via Pipeline)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }}
+  IMAGE_NAME: gradebe
+  BASE_IMAGE_NAME: base
+  BASE_TAG: prod-v1
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      requirements_changed: ${{ steps.set.outputs.changed }}
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect requirements.txt change
+        id: set
+        shell: bash
+        run: |
+          echo "Comparing: ${{ github.event.before }} → ${{ github.event.after }}"
+          CHANGED=$(git diff --name-only "${{ github.event.before }}" "${{ github.event.after }}")
+          echo "FILES CHANGED:"
+          echo "$CHANGED"
+
+          if echo "$CHANGED" | grep -q "^requirements.txt$"; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+  build-base:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.requirements_changed == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push Base image
+        run: |
+          IMAGE=${REGISTRY}/${BASE_IMAGE_NAME}:${BASE_TAG}
+          echo "Building base image: $IMAGE"
+
+          docker buildx build \
+            --platform linux/amd64 \
+            -f Dockerfile.base \
+            -t "$IMAGE" \
+            --push \
+            .
+
+  build-and-push:
+    needs: [detect-changes, build-base]
+    if: |
+      needs.detect-changes.outputs.requirements_changed != 'true' ||
+      needs.build-base.result == 'success'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push App image to ACR
+        run: |
+          IMAGE=${REGISTRY}/${IMAGE_NAME}:latest
+          echo "Building and pushing app image: $IMAGE"
+
+          docker buildx build \
+            --platform linux/amd64 \
+            -t "$IMAGE" \
+            --push \
+            .
+
+      # Web + Worker:
+      #   - Deployed automatically by ACR webhooks when :latest is pushed
+
+      - name: Trigger Celery Beat Web App via webhook
+        run: |
+          echo "Triggering Celery Beat deployment..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.SCM_BEAT_WEBHOOK }}")
+          echo "Webhook response code: $STATUS"
