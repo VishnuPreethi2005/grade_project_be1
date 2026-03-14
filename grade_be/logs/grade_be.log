@@ -1,0 +1,80 @@
+2026-03-13 20:45:37,903 [INFO] django.utils.autoreload: Watching for file changes with StatReloader
+2026-03-13 21:14:27,965 [INFO] django.utils.autoreload: Watching for file changes with StatReloader
+2026-03-13 21:14:53,163 [WARNING] google_genai._api_client: Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2026-03-13 21:14:56,423 [INFO] grade.ocr_processing_core: [OK] Gemini Grading Client initialized.
+2026-03-13 21:14:56,424 [INFO] grade.ocr_processing_core: --- Loading YOLO Model... ---
+2026-03-13 21:14:56,671 [INFO] grade.ocr_processing_core: --- YOLO Model instantiated. Pre-warming model... ---
+2026-03-13 21:15:03,332 [INFO] grade.ocr_processing_core: --- YOLO Model is now 'warm' and ready. ---
+2026-03-13 21:15:36,897 [INFO] django.utils.autoreload: C:\grade_project\grade_be\venv\Lib\site-packages\razorpay\resources\refund.py changed, reloading.
+2026-03-13 21:15:43,040 [INFO] django.utils.autoreload: Watching for file changes with StatReloader
+2026-03-13 21:16:34,945 [INFO] django.utils.autoreload: Watching for file changes with StatReloader
+2026-03-13 21:18:46,199 [INFO] django.utils.autoreload: Watching for file changes with StatReloader
+2026-03-13 21:19:52,611 [INFO] django.utils.autoreload: C:\grade_project\grade_be\venv\Lib\site-packages\_distutils_hack\__init__.py changed, reloading.
+2026-03-13 21:20:01,606 [INFO] django.utils.autoreload: Watching for file changes with StatReloader
+2026-03-13 21:21:27,730 [INFO] django.utils.autoreload: Watching for file changes with StatReloader
+2026-03-13 21:23:12,273 [INFO] django.utils.autoreload: C:\grade_project\grade_be\venv\Lib\site-packages\_distutils_hack\__init__.py changed, reloading.
+2026-03-13 21:23:34,842 [INFO] django.utils.autoreload: Watching for file changes with StatReloader
+2026-03-13 21:24:37,927 [INFO] django.utils.autoreload: Watching for file changes with StatReloader
+2026-03-13 21:24:38,981 [WARNING] google_genai._api_client: Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2026-03-13 21:24:43,601 [INFO] grade.ocr_processing_core: [OK] Gemini Grading Client initialized.
+2026-03-13 21:24:43,616 [INFO] grade.ocr_processing_core: --- Loading YOLO Model... ---
+2026-03-13 21:24:44,205 [INFO] grade.ocr_processing_core: --- YOLO Model instantiated. Pre-warming model... ---
+2026-03-13 21:24:53,707 [INFO] grade.ocr_processing_core: --- YOLO Model is now 'warm' and ready. ---
+2026-03-13 21:25:08,686 [WARNING] google_genai._api_client: Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2026-03-13 21:25:13,011 [INFO] grade.ocr_processing_core: [OK] Gemini Grading Client initialized.
+2026-03-13 21:25:13,022 [INFO] grade.ocr_processing_core: --- Loading YOLO Model... ---
+2026-03-13 21:25:13,270 [INFO] grade.ocr_processing_core: --- YOLO Model instantiated. Pre-warming model... ---
+2026-03-13 21:25:21,172 [INFO] grade.ocr_processing_core: --- YOLO Model is now 'warm' and ready. ---
+2026-03-13 21:27:34,634 [INFO] django.utils.autoreload: Watching for file changes with StatReloader
+2026-03-13 21:28:32,370 [WARNING] google_genai._api_client: Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2026-03-13 21:28:38,851 [INFO] grade.ocr_processing_core: [OK] Gemini Grading Client initialized.
+2026-03-13 21:28:38,863 [INFO] grade.ocr_processing_core: --- Loading YOLO Model... ---
+2026-03-13 21:28:39,093 [INFO] grade.ocr_processing_core: --- YOLO Model instantiated. Pre-warming model... ---
+2026-03-13 21:28:45,687 [INFO] grade.ocr_processing_core: --- YOLO Model is now 'warm' and ready. ---
+2026-03-13 21:32:32,868 [INFO] django.server: "GET / HTTP/1.1" 200 301
+2026-03-13 21:32:45,882 [INFO] django.server: "GET /admin HTTP/1.1" 301 0
+2026-03-13 21:32:46,296 [INFO] django.server: "GET /admin/ HTTP/1.1" 302 0
+2026-03-13 21:32:47,004 [INFO] django.server: "GET /admin/login/?next=/admin/ HTTP/1.1" 200 4169
+2026-03-13 21:32:47,580 [INFO] django.server: "GET /static/admin/css/dark_mode.css HTTP/1.1" 200 2804
+2026-03-13 21:32:47,657 [INFO] django.server: "GET /static/admin/css/base.css HTTP/1.1" 200 22092
+2026-03-13 21:32:47,838 [INFO] django.server: "GET /static/admin/css/nav_sidebar.css HTTP/1.1" 200 2810
+2026-03-13 21:32:47,867 [INFO] django.server: "GET /static/admin/css/login.css HTTP/1.1" 200 951
+2026-03-13 21:32:47,970 [INFO] django.server: "GET /static/admin/css/responsive.css HTTP/1.1" 200 17972
+2026-03-13 21:32:48,094 [INFO] django.server: "GET /static/admin/js/theme.js HTTP/1.1" 200 1653
+2026-03-13 21:32:48,094 [INFO] django.server: "GET /static/admin/js/nav_sidebar.js HTTP/1.1" 200 3063
+2026-03-13 21:32:54,602 [INFO] django.server: "POST /admin/login/?next=/admin/ HTTP/1.1" 302 0
+2026-03-13 21:32:54,988 [INFO] django.server: "GET /admin/ HTTP/1.1" 200 52618
+2026-03-13 21:32:55,101 [INFO] django.server: "GET /static/admin/css/dashboard.css HTTP/1.1" 200 441
+2026-03-13 21:32:55,147 [INFO] django.server: "GET /static/admin/img/icon-changelink.svg HTTP/1.1" 200 380
+2026-03-13 21:32:55,154 [INFO] django.server: "GET /static/admin/img/icon-addlink.svg HTTP/1.1" 200 331
+2026-03-13 21:39:07,477 [INFO] django.server: "GET / HTTP/1.1" 200 301
+2026-03-13 21:39:12,970 [INFO] django.server: "GET /admin HTTP/1.1" 301 0
+2026-03-13 21:39:13,183 [INFO] django.server: "GET /admin/ HTTP/1.1" 200 52618
+2026-03-13 21:39:57,865 [WARNING] django.server: "GET /mini_ide HTTP/1.1" 404 28305
+2026-03-13 21:43:57,428 [INFO] django.utils.autoreload: Watching for file changes with StatReloader
+2026-03-13 21:44:21,319 [WARNING] google_genai._api_client: Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2026-03-13 21:44:24,809 [INFO] grade.ocr_processing_core: [OK] Gemini Grading Client initialized.
+2026-03-13 21:44:24,810 [INFO] grade.ocr_processing_core: --- Loading YOLO Model... ---
+2026-03-13 21:44:25,086 [INFO] grade.ocr_processing_core: --- YOLO Model instantiated. Pre-warming model... ---
+2026-03-13 21:44:32,097 [INFO] grade.ocr_processing_core: --- YOLO Model is now 'warm' and ready. ---
+2026-03-13 21:46:30,404 [INFO] django.server: "GET / HTTP/1.1" 200 301
+2026-03-13 21:46:30,679 [WARNING] django.server: "GET /favicon.ico HTTP/1.1" 404 28314
+2026-03-13 21:46:40,137 [INFO] django.server: "GET /admin HTTP/1.1" 301 0
+2026-03-13 21:46:40,493 [INFO] django.server: "GET /admin/ HTTP/1.1" 200 52618
+2026-03-13 21:46:40,838 [INFO] django.server: "GET /static/admin/css/base.css HTTP/1.1" 200 22092
+2026-03-13 21:46:40,838 [INFO] django.server: "GET /static/admin/css/dark_mode.css HTTP/1.1" 200 2804
+2026-03-13 21:46:40,846 [INFO] django.server: "GET /static/admin/css/dashboard.css HTTP/1.1" 200 441
+2026-03-13 21:46:40,847 [INFO] django.server: "GET /static/admin/css/nav_sidebar.css HTTP/1.1" 200 2810
+2026-03-13 21:46:40,854 [INFO] django.server: "GET /static/admin/css/responsive.css HTTP/1.1" 200 17972
+2026-03-13 21:46:40,857 [INFO] django.server: "GET /static/admin/js/theme.js HTTP/1.1" 200 1653
+2026-03-13 21:46:40,865 [INFO] django.server: "GET /static/admin/js/nav_sidebar.js HTTP/1.1" 200 3063
+2026-03-13 21:46:40,894 [INFO] django.server: "GET /static/admin/img/icon-addlink.svg HTTP/1.1" 200 331
+2026-03-13 21:46:40,894 [INFO] django.server: "GET /static/admin/img/icon-changelink.svg HTTP/1.1" 200 380
+2026-03-13 22:04:08,124 [INFO] django.server: "GET / HTTP/1.1" 200 301
+2026-03-13 22:04:15,578 [INFO] django.server: "GET /admin/ HTTP/1.1" 200 52618
+2026-03-14 09:48:28,516 [INFO] django.utils.autoreload: Watching for file changes with StatReloader
+2026-03-14 09:48:43,122 [WARNING] google_genai._api_client: Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2026-03-14 09:48:44,395 [INFO] grade.ocr_processing_core: [OK] Gemini Grading Client initialized.
+2026-03-14 09:48:44,396 [INFO] grade.ocr_processing_core: --- Loading YOLO Model... ---
+2026-03-14 09:48:44,520 [INFO] grade.ocr_processing_core: --- YOLO Model instantiated. Pre-warming model... ---
+2026-03-14 09:48:47,849 [INFO] grade.ocr_processing_core: --- YOLO Model is now 'warm' and ready. ---
