@@ -112,9 +112,8 @@ class PDFReportGenerator:
         canvas.saveState()
         
         # Logo
-        # Assuming folder structure: root/grade_be (backend) and root/grade_fe (frontend)
-        # settings.BASE_DIR points to backend root
-        logo_path = os.path.join(settings.BASE_DIR.parent, "grade_fe", "logo.png")
+        # Using self-contained logo in backend static folder
+        logo_path = os.path.join(settings.BASE_DIR, "grade", "static", "logo.png")
         if os.path.exists(logo_path):
             try:
                 # Draw logo (width ~1.5 inch, aspect ratio preserved)

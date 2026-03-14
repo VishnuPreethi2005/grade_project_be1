@@ -1,0 +1,62 @@
+# Python
+venv*/
+myenv*/
+env/
+.env*/
+.venv*/
+**/node_modules/
+**/__pycache__/
+*.py[cod]
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+node_modules/
+
+# Environment variables
+.env
+
+# Diagnostic Scripts (Custom for this project)
+verify_*.py
+fix_*.py
+repair_*.py
+add_azure_vars.py
+backfill_pii*.py
+bulkupload.py
+check_*.py
+debug_*.py
+diagnose_*.py
+drop_*.py
+import_tool.py
+inspect_*.py
+migrate_*.py
+test_middleware.py
+test_search.py
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+dist/
+build/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Project local storage
+staticfiles/
+media/
+C:/ip_docker/
+ip_docker/
+cleanup_list.txt
