@@ -1,12 +1,12 @@
 # Python
-venv/
-myenv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
+venv*/
+myenv*/
 env/
+.env*/
+.venv*/
+**/node_modules/
+**/__pycache__/
+*.py[cod]
 pip-log.txt
 pip-delete-this-directory.txt
 .tox/
@@ -17,6 +17,7 @@ coverage.xml
 *.cover
 .hypothesis/
 .pytest_cache/
+node_modules/
 
 # Environment variables
 .env
