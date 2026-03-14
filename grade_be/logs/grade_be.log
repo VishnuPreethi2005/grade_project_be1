@@ -78,3 +78,21 @@
 2026-03-14 09:48:44,396 [INFO] grade.ocr_processing_core: --- Loading YOLO Model... ---
 2026-03-14 09:48:44,520 [INFO] grade.ocr_processing_core: --- YOLO Model instantiated. Pre-warming model... ---
 2026-03-14 09:48:47,849 [INFO] grade.ocr_processing_core: --- YOLO Model is now 'warm' and ready. ---
+2026-03-14 12:48:33,210 [WARNING] google_genai._api_client: Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2026-03-14 12:48:36,519 [INFO] grade.ocr_processing_core: [OK] Gemini Grading Client initialized.
+2026-03-14 12:48:36,521 [INFO] grade.ocr_processing_core: --- Loading YOLO Model... ---
+2026-03-14 12:48:36,818 [INFO] grade.ocr_processing_core: --- YOLO Model instantiated. Pre-warming model... ---
+2026-03-14 12:48:44,033 [INFO] grade.ocr_processing_core: --- YOLO Model is now 'warm' and ready. ---
+2026-03-14 12:49:52,760 [WARNING] google_genai._api_client: Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2026-03-14 12:49:56,003 [INFO] grade.ocr_processing_core: [OK] Gemini Grading Client initialized.
+2026-03-14 12:49:56,003 [INFO] grade.ocr_processing_core: --- Loading YOLO Model... ---
+2026-03-14 12:49:56,118 [INFO] grade.ocr_processing_core: --- YOLO Model instantiated. Pre-warming model... ---
+2026-03-14 12:50:00,648 [INFO] grade.ocr_processing_core: --- YOLO Model is now 'warm' and ready. ---
+2026-03-14 12:50:34,049 [WARNING] google_genai._api_client: Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2026-03-14 12:50:37,141 [INFO] grade.ocr_processing_core: [OK] Gemini Grading Client initialized.
+2026-03-14 12:50:37,144 [INFO] grade.ocr_processing_core: --- Loading YOLO Model... ---
+2026-03-14 12:50:37,261 [INFO] grade.ocr_processing_core: --- YOLO Model instantiated. Pre-warming model... ---
+2026-03-14 12:50:41,853 [INFO] grade.ocr_processing_core: --- YOLO Model is now 'warm' and ready. ---
+2026-03-14 12:51:20,679 [INFO] django.server: "GET / HTTP/1.1" 200 301
+2026-03-14 12:51:26,949 [INFO] django.server: "GET /admin HTTP/1.1" 301 0
+2026-03-14 12:51:27,457 [INFO] django.server: "GET /admin/ HTTP/1.1" 200 52618
