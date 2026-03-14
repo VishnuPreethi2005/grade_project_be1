@@ -96,3 +96,8 @@
 2026-03-14 12:51:20,679 [INFO] django.server: "GET / HTTP/1.1" 200 301
 2026-03-14 12:51:26,949 [INFO] django.server: "GET /admin HTTP/1.1" 301 0
 2026-03-14 12:51:27,457 [INFO] django.server: "GET /admin/ HTTP/1.1" 200 52618
+2026-03-14 13:14:44,978 [WARNING] google_genai._api_client: Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2026-03-14 13:14:49,124 [INFO] grade.ocr_processing_core: [OK] Gemini Grading Client initialized.
+2026-03-14 13:14:49,125 [INFO] grade.ocr_processing_core: --- Loading YOLO Model... ---
+2026-03-14 13:14:49,375 [INFO] grade.ocr_processing_core: --- YOLO Model instantiated. Pre-warming model... ---
+2026-03-14 13:14:56,512 [INFO] grade.ocr_processing_core: --- YOLO Model is now 'warm' and ready. ---
