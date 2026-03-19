@@ -1,0 +1,8 @@
+# Extract Page Number Prompt
+# Used for extracting page numbers from images
+name: extract_page_number
+version: "1.0"
+description: Prompt for extracting page number from corner of image
+
+prompt: |
+  Extract the page number from the top-right corner. Return digits only.

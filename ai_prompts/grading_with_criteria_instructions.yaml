@@ -1,0 +1,15 @@
+# Grading With Criteria Instructions
+# Used when specific evaluation criteria are defined
+name: grading_with_criteria_instructions
+version: "1.0"
+description: Instructions for grading with specific criteria
+
+prompt: |
+  MANDATORY EVALUATION CRITERIA:
+  {criteria_json}
+
+  ABSOLUTE GRADING REQUIREMENTS:
+  1. Evaluate against the criteria listed above OR the selected Alternative option.
+  2. Award marks for EACH criterion.
+  3. Provide specific feedback for EACH criterion in `criteria_breakdown`.
+  4. Response MUST be valid JSON matching the schema.

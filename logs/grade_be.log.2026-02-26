@@ -1,0 +1,30 @@
+2026-02-25 20:45:21,792 [WARNING] google_genai._api_client: Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2026-02-25 20:45:25,171 [INFO] grade.ocr_processing_core: ✅ Gemini Grading Client initialized.
+2026-02-25 20:45:25,173 [INFO] grade.ocr_processing_core: --- Loading YOLO Model... ---
+2026-02-25 20:45:25,460 [INFO] grade.ocr_processing_core: --- YOLO Model instantiated. Pre-warming model... ---
+2026-02-25 20:45:31,936 [INFO] grade.ocr_processing_core: --- YOLO Model is now 'warm' and ready. ---
+2026-02-25 22:15:06,451 [WARNING] google_genai._api_client: Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2026-02-25 22:15:10,015 [INFO] grade.ocr_processing_core: ✅ Gemini Grading Client initialized.
+2026-02-25 22:15:10,017 [INFO] grade.ocr_processing_core: --- Loading YOLO Model... ---
+2026-02-25 22:15:10,311 [INFO] grade.ocr_processing_core: --- YOLO Model instantiated. Pre-warming model... ---
+2026-02-25 22:15:17,876 [INFO] grade.ocr_processing_core: --- YOLO Model is now 'warm' and ready. ---
+2026-02-25 22:16:41,359 [WARNING] google_genai._api_client: Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2026-02-25 22:16:44,548 [INFO] grade.ocr_processing_core: ✅ Gemini Grading Client initialized.
+2026-02-25 22:16:44,549 [INFO] grade.ocr_processing_core: --- Loading YOLO Model... ---
+2026-02-25 22:16:44,719 [INFO] grade.ocr_processing_core: --- YOLO Model instantiated. Pre-warming model... ---
+2026-02-25 22:16:49,560 [INFO] grade.ocr_processing_core: --- YOLO Model is now 'warm' and ready. ---
+2026-02-25 22:22:35,550 [WARNING] google_genai._api_client: Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2026-02-25 22:22:38,852 [INFO] grade.ocr_processing_core: ✅ Gemini Grading Client initialized.
+2026-02-25 22:22:38,852 [INFO] grade.ocr_processing_core: --- Loading YOLO Model... ---
+2026-02-25 22:22:39,186 [INFO] grade.ocr_processing_core: --- YOLO Model instantiated. Pre-warming model... ---
+2026-02-25 22:22:46,251 [INFO] grade.ocr_processing_core: --- YOLO Model is now 'warm' and ready. ---
+2026-02-25 22:34:55,791 [WARNING] google_genai._api_client: Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2026-02-25 22:34:59,292 [INFO] grade.ocr_processing_core: ✅ Gemini Grading Client initialized.
+2026-02-25 22:34:59,293 [INFO] grade.ocr_processing_core: --- Loading YOLO Model... ---
+2026-02-25 22:34:59,637 [INFO] grade.ocr_processing_core: --- YOLO Model instantiated. Pre-warming model... ---
+2026-02-25 22:35:06,324 [INFO] grade.ocr_processing_core: --- YOLO Model is now 'warm' and ready. ---
+2026-02-26 14:18:01,892 [WARNING] google_genai._api_client: Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2026-02-26 14:18:05,781 [INFO] grade.ocr_processing_core: [OK] Gemini Grading Client initialized.
+2026-02-26 14:18:05,783 [INFO] grade.ocr_processing_core: --- Loading YOLO Model... ---
+2026-02-26 14:18:06,067 [INFO] grade.ocr_processing_core: --- YOLO Model instantiated. Pre-warming model... ---
+2026-02-26 14:18:14,106 [INFO] grade.ocr_processing_core: --- YOLO Model is now 'warm' and ready. ---

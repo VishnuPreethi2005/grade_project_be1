@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['diagram']
+
+roboflow:
+  workspace: hiddencoder
+  project: handwritten_diagram-hyteo
+  version: 3
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/hiddencoder/handwritten_diagram-hyteo/dataset/3

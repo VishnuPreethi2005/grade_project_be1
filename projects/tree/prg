@@ -1,0 +1,31 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+
+# Dataset
+X = np.array([[1], [2], [3], [4], [5]])
+y = np.array([30000, 35000, 50000, 60000, 75000])
+
+# Train model
+model = LinearRegression()
+model.fit(X, y)
+
+# Predict for 6 years
+prediction = model.predict([[6]])
+
+# Plot original data points
+plt.scatter(X, y)
+
+# Plot regression line
+plt.plot(X, model.predict(X))
+
+# Plot predicted point
+plt.scatter(6, prediction)
+
+plt.xlabel("Years of Experience")
+plt.ylabel("Salary")
+plt.title("Linear Regression Example")
+
+plt.show()
+
+print("Predicted Salary:", prediction[0])
