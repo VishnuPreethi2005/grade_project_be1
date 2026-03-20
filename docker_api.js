@@ -74,7 +74,7 @@ app.post('/start-project', async (req, res) => {
 });
 
 app.post('/execute-command', async (req, res) => {
-    const { userId, projectId, command } = req.body;
+    const { userId, projectId, command, workingDir } = req.body;
 
     if (!userId || !projectId || !command) {
         return res.status(400).json({ error: 'Missing required fields' });
@@ -93,8 +93,14 @@ app.post('/execute-command', async (req, res) => {
     }
 
     // 2. Execute command inside container
+    let commandWithCwd = command;
+    if (workingDir && typeof workingDir === 'string' && workingDir.trim()) {
+        const escapedDir = workingDir.trim().replace(/"/g, '\\"');
+        commandWithCwd = `cd "${escapedDir}" && ${command}`;
+    }
+
     // Escape double quotes inside the command to ensure bash -c gets the full string securely
-    const escapedCommand = command.replace(/"/g, '\\"');
+    const escapedCommand = commandWithCwd.replace(/"/g, '\\"');
     const execCmd = `docker exec ${containerName} bash -c "${escapedCommand}"`;
 
     try {

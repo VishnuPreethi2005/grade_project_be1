@@ -36,6 +36,39 @@ CONTAINER_PROMPT: str = "/workspace$"
 # Local dictionary to track if container is being started
 IS_CONTAINER_READY: Dict[str, bool] = {}
 
+
+def _sanitize_workspace_name(name: Optional[str]) -> str:
+    candidate = (name or DEFAULT_WORKSPACE_NAME).strip()
+    candidate = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "-", candidate)
+    candidate = re.sub(r"\s+", " ", candidate).strip(" .")
+    return candidate or DEFAULT_WORKSPACE_NAME
+
+
+def _workspace_root() -> str:
+    if not CURRENT_DIR:
+        raise HTTPException(status_code=400, detail="No workspace opened")
+    root = os.path.abspath(CURRENT_DIR)
+    os.makedirs(root, exist_ok=True)
+    return root
+
+
+def _resolve_workspace_path(relative_path: Optional[str], *, allow_empty: bool = False) -> str:
+    root = _workspace_root()
+    raw = (relative_path or "").strip()
+    normalized = raw.replace("\\", "/").strip("/")
+    if not normalized:
+        if allow_empty:
+            return root
+        raise HTTPException(status_code=400, detail="Path is required")
+
+    target = os.path.abspath(os.path.join(root, normalized))
+    try:
+        if os.path.commonpath([root, target]) != root:
+            raise HTTPException(status_code=400, detail="Path escapes workspace root")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    return target
+
 # Resolve container name from websocket query params or global/env.
 def _resolve_container_name(scope: Dict[str, Any]) -> Optional[str]:
     query_string = scope.get("query_string", b"")
@@ -504,20 +537,28 @@ async def pick_host_root():
 async def create_folder_workspace(request: PathRequest):
     """Creates a new folder on the system and sets it as the workspace."""
     global CURRENT_DIR
-    if not request.path:
-        # User requested projects to be under the Docker Root
+    if request.path:
+        target_path = os.path.abspath(os.path.expanduser(request.path))
+    else:
         os.makedirs(DOCKER_HOST_ROOT, exist_ok=True)
-        request.path = os.path.join(DOCKER_HOST_ROOT, request.name or "NewProject")
-
-    target_path = os.path.abspath(os.path.expanduser(request.path))
+        workspace_name = _sanitize_workspace_name(request.name)
+        target_path = os.path.abspath(os.path.join(DOCKER_HOST_ROOT, workspace_name))
     try:
+        if os.path.exists(target_path) and not os.path.isdir(target_path):
+            raise HTTPException(status_code=400, detail="A file already exists at the requested workspace path")
         os.makedirs(target_path, exist_ok=True)
         CURRENT_DIR = target_path
         try:
             _ensure_container_for_workspace(CURRENT_DIR)
         except Exception as e:
             print(f"Container start failed: {e}")
-        return {"current_dir": CURRENT_DIR, "status": "success"}
+        return {
+            "current_dir": CURRENT_DIR,
+            "workspace_name": os.path.basename(CURRENT_DIR.rstrip("\\/")) or DEFAULT_WORKSPACE_NAME,
+            "status": "success",
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -526,6 +567,7 @@ async def list_files():
     """Returns the hierarchical file tree for the active workspace."""
     if not CURRENT_DIR:
         return {"files": [], "current_dir": None, "status": "no_workspace"}
+    workspace_root = _workspace_root()
 
     def build_tree(base_path):
         nodes = []
@@ -533,7 +575,7 @@ async def list_files():
             items = sorted(os.listdir(base_path), key=lambda x: (not os.path.isdir(os.path.join(base_path, x)), x.lower()))
             for item in items:
                 path = os.path.join(base_path, item)
-                rel_path = os.path.relpath(path, CURRENT_DIR).replace("\\", "/")
+                rel_path = os.path.relpath(path, workspace_root).replace("\\", "/")
                 is_dir = os.path.isdir(path)
                 node = {
                     "name": item,
@@ -547,39 +589,41 @@ async def list_files():
             pass
         return nodes
 
-    return {"files": build_tree(CURRENT_DIR), "current_dir": CURRENT_DIR, "status": "success"}
+    return {"files": build_tree(workspace_root), "current_dir": workspace_root, "status": "success"}
 
 @app.post("/create_item")
 async def create_item(request: CreateItemRequest):
     """Creates a new file or folder inside the active workspace."""
-    if not CURRENT_DIR:
-        raise HTTPException(status_code=400, detail="No workspace opened")
     try:
-        target_path = os.path.join(CURRENT_DIR, request.name)
+        if request.type not in ("file", "folder"):
+            raise HTTPException(status_code=400, detail="Invalid item type")
+        target_path = _resolve_workspace_path(request.name)
         if os.path.exists(target_path):
             raise HTTPException(status_code=400, detail="Item already exists")
         
         if request.type == "folder":
             os.makedirs(target_path, exist_ok=True)
         else:
-            os.makedirs(os.path.dirname(target_path), exist_ok=True)
-            with open(target_path, "w", encoding="utf-8") as f:
+            parent_dir = os.path.dirname(target_path)
+            if parent_dir:
+                os.makedirs(parent_dir, exist_ok=True)
+            with open(target_path, "x", encoding="utf-8"):
                 pass
-        return {"status": "success"}
+        return {"status": "success", "path": os.path.relpath(target_path, _workspace_root()).replace("\\", "/")}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/delete_item")
 async def delete_item(request: PathRequest):
     """Deletes a file or folder from the workspace."""
-    if not CURRENT_DIR:
-        raise HTTPException(status_code=400, detail="No workspace opened")
     target_rel_path = request.path or request.name
     if not target_rel_path:
         raise HTTPException(status_code=400, detail="Path or Name is required")
     
     try:
-        target_path = os.path.join(CURRENT_DIR, target_rel_path)
+        target_path = _resolve_workspace_path(target_rel_path)
         if not os.path.exists(target_path):
             raise HTTPException(status_code=404, detail="Item not found")
         
@@ -588,46 +632,53 @@ async def delete_item(request: PathRequest):
         else:
             os.remove(target_path)
         return {"status": "success"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/save_file")
 async def save_file(request: SaveFileRequest):
-    if not CURRENT_DIR:
-        raise HTTPException(status_code=400, detail="No workspace opened")
     try:
-        path = os.path.join(CURRENT_DIR, request.file_name)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        path = _resolve_workspace_path(request.file_name)
+        parent_dir = os.path.dirname(path)
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             f.write(request.code_content)
         return {"status": "success"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/view_file")
 async def view_file(file_name: str):
-    if not CURRENT_DIR:
-        raise HTTPException(status_code=400, detail="No workspace opened")
     try:
-        path = os.path.join(CURRENT_DIR, file_name)
+        path = _resolve_workspace_path(file_name)
+        if not os.path.isfile(path):
+            raise HTTPException(status_code=404, detail="File not found")
         with open(path, "r", encoding="utf-8") as f:
             content = f.read()
         return {"code_content": content, "status": "success"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/run_file")
 async def run_file(request: RunFileRequest):
-    if not CURRENT_DIR:
-        raise HTTPException(status_code=400, detail="No workspace opened")
     try:
-        file_path = os.path.join(CURRENT_DIR, request.file_name)
+        file_path = _resolve_workspace_path(request.file_name)
+        if not os.path.isfile(file_path):
+            raise HTTPException(status_code=404, detail="File not found")
+        file_dir = os.path.dirname(file_path) or _workspace_root()
         # We ensure stdin is passed to the process
         env = os.environ.copy()
         env["PYTHONUNBUFFERED"] = "1"
         process = subprocess.run(
             [sys.executable, file_path],
-            cwd=CURRENT_DIR,
+            cwd=file_dir,
             input=request.stdin_input if request.stdin_input else None,
             capture_output=True,
             text=True,
@@ -640,6 +691,8 @@ async def run_file(request: RunFileRequest):
             "returncode": process.returncode,
             "status": "success"
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
