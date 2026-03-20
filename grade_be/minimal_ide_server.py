@@ -28,5 +28,5 @@ app.mount("/", m1)
 app.mount("/module2", m2)
 
 if __name__ == "__main__":
-    print("Starting Combined Mini IDE Server on http://localhost:8000/mini_ide")
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    print("Starting Combined Mini IDE Server on http://localhost:8001/mini_ide")
+    uvicorn.run(app, host="127.0.0.1", port=8001)

@@ -628,21 +628,18 @@
         -->
         <div class="menu-item">File
             <div class="dropdown">
-                <!--
                 <div class="dropdown-item" onclick="pickFolder()"><span>📂 Open Folder...</span> <span
                         class="shortcut">Ctrl+K O</span></div>
                 <div class="divider"></div>
                 <div class="dropdown-item" onclick="promptCreateWorkspace()"><span>✨ New Workspace...</span></div>
                 <div class="divider"></div>
-                -->
                 <div class="dropdown-item" onclick="saveFile()"><span>💾 Save</span> <span
                         class="shortcut">Ctrl+S</span></div>
+                <div class="dropdown-item" onclick="saveAllFiles()"><span>💾 Save All</span></div>
                 <div class="dropdown-item" onclick="saveAs()"><span>💾 Save As...</span> <span
                         class="shortcut">Ctrl+Shift+S</span></div>
-                <!--
                 <div class="divider"></div>
                 <div class="dropdown-item" onclick="showWelcome()"><span>Close Workspace</span></div>
-                -->
             </div>
         </div>
         <div class="menu-item">Edit</div>
@@ -782,6 +779,7 @@
         let promptSpaceInserted = false;
         let outputTail = '';
         const promptRegex = /\/workspace\$\s*$/;
+        const AUTOSAVE_DELAY_MS = 1200;
 
         function filterBackendOutput(text) {
             // Remove control characters like backspace; normalize newlines to \n.
@@ -1569,18 +1567,6 @@
                 }
             });
 
-            // ─── Editor change events → notify LSP ───
-            monacoEditor.onDidChangeModelContent(debounce((e) => {
-                if (ACTIVE_FILE) {
-                    sendLSPNotify('textDocument/didChange', {
-                        textDocument: { uri: getDocUri(), version: monacoEditor.getModel().getVersionId() },
-                        contentChanges: [{ text: monacoEditor.getValue() }]
-                    });
-                    markDirty(ACTIVE_FILE, true);
-                    scheduleAutosave(ACTIVE_FILE);
-                }
-            }, 300));
-
             console.log('Monaco Editor initialized.');
         });
 
@@ -1793,23 +1779,18 @@
         };
 
         async function pickFolder() {
-            // Workspace open is disabled for now.
-            /*
             const res = await fetch('/pick_folder');
             const data = await res.json();
             if (data.status === 'success') {
                 CURRENT_WORKSPACE_PATH = data.current_dir;
                 hideWelcome();
-                refreshTree();
+                await refreshTree();
                 updateLSPConnection(data.current_dir);
                 syncTerminalCwd();
             }
-            */
         }
 
         async function promptCreateWorkspace() {
-            // Workspace creation is disabled for now.
-            /*
             const name = prompt('Enter workspace folder name:');
             if (!name) return;
             const res = await fetch('/create_folder_workspace', {
@@ -1821,11 +1802,13 @@
                 const data = await res.json();
                 CURRENT_WORKSPACE_PATH = data.current_dir;
                 hideWelcome();
-                refreshTree();
+                await refreshTree();
                 updateLSPConnection(data.current_dir);
                 syncTerminalCwd();
+            } else {
+                const err = await res.json().catch(() => ({}));
+                showToast('❌ Workspace creation failed: ' + (err.detail || 'Unknown error'));
             }
-            */
         }
 
         function updateLSPConnection(root) {
@@ -1973,18 +1956,48 @@
                 close.innerText = 'x';
                 close.onclick = (e) => {
                     e.stopPropagation();
-                    closeTab(path);
+                    void closeTab(path);
                 };
                 tab.appendChild(close);
 
-                tab.onclick = () => setActiveTab(path);
+                tab.onclick = () => { void setActiveTab(path); };
                 container.appendChild(tab);
             });
         }
 
-        function setActiveTab(path) {
+        function attachModelListeners(path, state) {
+            if (!state || !state.model) return;
+            state.changeListener = state.model.onDidChangeContent(debounce(() => {
+                markDirty(path, true);
+                scheduleAutosave(path);
+                if (ACTIVE_FILE === path && lspReady && monacoEditor && monacoEditor.getModel() === state.model) {
+                    sendLSPNotify('textDocument/didChange', {
+                        textDocument: { uri: getDocUri(), version: state.model.getVersionId() },
+                        contentChanges: [{ text: state.model.getValue() }]
+                    });
+                }
+            }, 250));
+        }
+
+        function createTabState(path, content) {
+            const lang = getLanguageByExtension(path);
+            const model = monaco.editor.createModel(content || '', lang);
+            const state = { model, isDirty: false, saveTimer: null, changeListener: null };
+            attachModelListeners(path, state);
+            return state;
+        }
+
+        async function setActiveTab(path) {
             const state = TAB_STATE[path];
             if (!state || !monacoEditor) return;
+
+            if (ACTIVE_FILE && ACTIVE_FILE !== path) {
+                const previous = TAB_STATE[ACTIVE_FILE];
+                if (previous && previous.isDirty) {
+                    await saveFile(ACTIVE_FILE, { silent: true });
+                }
+            }
+
             ACTIVE_FILE = path;
             monacoEditor.setModel(state.model);
             const lang = getLanguageByExtension(path);
@@ -1993,9 +2006,17 @@
             if (lspReady) openDocInLSP();
         }
 
-        function closeTab(path) {
+        async function closeTab(path) {
             const state = TAB_STATE[path];
+            if (state && state.isDirty) {
+                const shouldSave = confirm(`Save changes before closing ${path.split('/').pop()}?`);
+                if (shouldSave) {
+                    const saved = await saveFile(path);
+                    if (!saved) return;
+                }
+            }
             if (state && state.saveTimer) clearTimeout(state.saveTimer);
+            if (state && state.changeListener) state.changeListener.dispose();
             if (state && state.model) state.model.dispose();
             delete TAB_STATE[path];
             OPEN_TABS = OPEN_TABS.filter(p => p !== path);
@@ -2003,7 +2024,7 @@
             if (ACTIVE_FILE === path) {
                 const next = OPEN_TABS[OPEN_TABS.length - 1];
                 if (next) {
-                    setActiveTab(next);
+                    await setActiveTab(next);
                 } else {
                     ACTIVE_FILE = '';
                     if (monacoEditor) {
@@ -2025,18 +2046,18 @@
                 if (!ok) return;
             }
             if (TAB_STATE[path]) {
-                setActiveTab(path);
+                await setActiveTab(path);
                 return;
             }
             const res = await fetch('/view_file?file_name=' + encodeURIComponent(path));
             const data = await res.json();
             if (res.ok && monacoEditor) {
                 const content = data.code_content || '';
-                const lang = getLanguageByExtension(path);
-                const model = monaco.editor.createModel(content, lang);
-                TAB_STATE[path] = { model, isDirty: false, saveTimer: null };
+                TAB_STATE[path] = createTabState(path, content);
                 OPEN_TABS.push(path);
-                setActiveTab(path);
+                await setActiveTab(path);
+            } else {
+                showToast('❌ Failed to open file: ' + (data.detail || path));
             }
         }
 
@@ -2055,7 +2076,7 @@
             const state = TAB_STATE[path];
             if (!state) return;
             if (state.saveTimer) clearTimeout(state.saveTimer);
-            state.saveTimer = setTimeout(() => autoSave(path), 2000);
+            state.saveTimer = setTimeout(() => { void autoSave(path); }, AUTOSAVE_DELAY_MS);
         }
 
         async function autoSave(path) {
@@ -2068,17 +2089,37 @@
             if (!path) return showToast('⚠️ No file open to save.');
             const state = TAB_STATE[path];
             const content = state && state.model ? state.model.getValue() : (monacoEditor ? monacoEditor.getValue() : '');
-            await fetch('/save_file', {
+            const res = await fetch('/save_file', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ file_name: path, code_content: content })
             });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                showToast('❌ Save failed: ' + (err.detail || 'Unknown error'));
+                return false;
+            }
             if (state) {
                 if (state.saveTimer) clearTimeout(state.saveTimer);
                 state.saveTimer = null;
                 markDirty(path, false);
             }
             if (!options.silent) showToast('✅ Saved: ' + path.split('/').pop());
+            return true;
+        }
+
+        async function saveAllFiles(options = {}) {
+            if (!OPEN_TABS.length) {
+                if (!options.silent) showToast('⚠️ No open files to save.');
+                return;
+            }
+            const dirtyTabs = OPEN_TABS.filter(path => TAB_STATE[path] && TAB_STATE[path].isDirty);
+            const toSave = dirtyTabs.length ? dirtyTabs : OPEN_TABS.slice();
+            const results = await Promise.all(toSave.map(path => saveFile(path, { silent: true })));
+            const successCount = results.filter(Boolean).length;
+            if (!options.silent) {
+                showToast(`✅ Saved ${successCount}/${toSave.length} files.`);
+            }
         }
 
         async function saveAs() {
@@ -2195,16 +2236,27 @@
             const ogText = runBtn.innerText;
             runBtn.disabled = true;
             runBtn.innerText = 'Running...';
-            await saveFile();
+            const saved = await saveFile();
+            if (!saved) {
+                runBtn.disabled = false;
+                runBtn.innerText = ogText;
+                return;
+            }
 
-            const command = `python ${ACTIVE_FILE.replace(/\\/g, '/')}`;
+            const normalized = ACTIVE_FILE.replace(/\\/g, '/');
+            const slashIndex = normalized.lastIndexOf('/');
+            const runDir = slashIndex >= 0 ? normalized.slice(0, slashIndex) : '.';
+            const runTarget = slashIndex >= 0 ? normalized.slice(slashIndex + 1) : normalized;
+            const command = runDir === '.'
+                ? `python "${runTarget}"`
+                : `cd "${runDir}" && python "${runTarget}"`;
 
             if (DOCKER_CONTAINER) {
                 try {
                     const res = await fetch(`${DOCKER_API}/execute-command`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ...DOCKER_CONTAINER, command: command })
+                        body: JSON.stringify({ ...DOCKER_CONTAINER, command: `python "${runTarget}"`, workingDir: runDir === '.' ? '' : runDir })
                     });
                     const data = await res.json();
                     if (data.stdout) terminalWriteln(data.stdout);
@@ -2230,11 +2282,23 @@
             const name = prompt(`New ${type} name (inside ${hint}):`);
             if (!name) return;
             const prefix = base ? base + '/' : '';
-            fetch('/create_item', {
+            const createdPath = (prefix + name).replace(/\\/g, '/').replace(/^\/+/, '');
+            const res = await fetch('/create_item', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: prefix + name, type })
-            }).then(r => r.ok ? refreshTree() : r.json().then(e => alert(e.detail)));
+                body: JSON.stringify({ name: createdPath, type })
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                showToast('❌ Create failed: ' + (err.detail || 'Unknown error'));
+                return;
+            }
+
+            await refreshTree();
+            if (type === 'file') {
+                await openFile(createdPath);
+            }
         }
 
         function replacePrefix(path, from, to) {
@@ -2257,12 +2321,14 @@
         }
 
         function updateTabsAfterRename(oldPath, newPath, isFolder) {
+            const affectedPaths = [];
             if (isFolder) {
                 const updated = {};
                 Object.keys(TAB_STATE).forEach((path) => {
                     if (path === oldPath || path.startsWith(oldPath + '/')) {
                         const nextPath = replacePrefix(path, oldPath, newPath);
                         updated[nextPath] = TAB_STATE[path];
+                        affectedPaths.push(nextPath);
                     } else {
                         updated[path] = TAB_STATE[path];
                     }
@@ -2281,10 +2347,18 @@
                 if (TAB_STATE[oldPath]) {
                     TAB_STATE[newPath] = TAB_STATE[oldPath];
                     delete TAB_STATE[oldPath];
+                    affectedPaths.push(newPath);
                 }
                 OPEN_TABS = OPEN_TABS.map((path) => (path === oldPath ? newPath : path));
                 if (ACTIVE_FILE === oldPath) ACTIVE_FILE = newPath;
             }
+
+            affectedPaths.forEach((path) => {
+                const state = TAB_STATE[path];
+                if (!state) return;
+                if (state.changeListener) state.changeListener.dispose();
+                attachModelListeners(path, state);
+            });
             renderTabs();
         }
 
@@ -2380,7 +2454,9 @@
             });
             if (res.ok) {
                 const toClose = OPEN_TABS.filter(p => p === SELECTED_PATH || p.startsWith(SELECTED_PATH + '/'));
-                toClose.forEach(closeTab);
+                for (const path of toClose) {
+                    await closeTab(path);
+                }
                 SELECTED_PATH = ''; SELECTED_TYPE = '';
                 refreshTree();
             } else {
@@ -2396,7 +2472,9 @@
             document.getElementById('welcomeOverlay').classList.remove('hidden');
             CURRENT_WORKSPACE_PATH = ''; ACTIVE_FILE = ''; SELECTED_PATH = ''; SELECTED_TYPE = '';
             if (OPEN_TABS.length) {
-                OPEN_TABS.slice().forEach(closeTab);
+                for (const path of OPEN_TABS.slice()) {
+                    await closeTab(path);
+                }
             }
             renderTabs();
         }
@@ -2414,6 +2492,16 @@
         document.addEventListener('keydown', e => {
             if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') { e.preventDefault(); saveAs(); }
             else if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveFile(); }
+            else if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 's') { e.preventDefault(); saveAllFiles(); }
+        });
+
+        window.addEventListener('beforeunload', (event) => {
+            const hasDirty = OPEN_TABS.some(path => TAB_STATE[path] && TAB_STATE[path].isDirty);
+            if (hasDirty) {
+                event.preventDefault();
+                event.returnValue = '';
+            }
+            void saveAllFiles({ silent: true });
         });
     </script>
 </body>
