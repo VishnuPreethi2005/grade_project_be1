@@ -14,24 +14,29 @@ import select
 import re
 import platform
 import importlib
+import zipfile
 from urllib.parse import parse_qs
 from collections import deque
 from typing import List, Optional, Dict, Any
+from dotenv import load_dotenv
 from workspace_module2.container_manager import start_or_reuse_container
 from workspace_module1.chatbot import run_chatbot_menu, ChatbotSession
 # import tkinter as tk (Moved to local scope)
 # from tkinter import filedialog (Moved to local scope)
 
+load_dotenv()
+
 app = FastAPI()
 
 # Global state
 CURRENT_DIR: Optional[str] = None
-DOCKER_HOST_ROOT: str = r"C:\ip_docker"
+WORKSPACE_ROOT: str = os.path.abspath(os.getenv("WORKSPACE_ROOT", r"C:\ip_docker\Workspace"))
 CURRENT_CONTAINER_NAME: Optional[str] = os.environ.get("TERMINAL_CONTAINER_NAME")
 CONTAINER_WORKDIR: str = "/workspace"
 DEFAULT_CONTAINER_SHELL: str = "/bin/sh"
 DEFAULT_WORKSPACE_NAME: str = "Workspace"
 CONTAINER_PROMPT: str = "/workspace$"
+os.makedirs(WORKSPACE_ROOT, exist_ok=True)
 
 # Local dictionary to track if container is being started
 IS_CONTAINER_READY: Dict[str, bool] = {}
@@ -48,6 +53,11 @@ def _workspace_root() -> str:
     if not CURRENT_DIR:
         raise HTTPException(status_code=400, detail="No workspace opened")
     root = os.path.abspath(CURRENT_DIR)
+    try:
+        if os.path.commonpath([WORKSPACE_ROOT, root]) != WORKSPACE_ROOT:
+            raise HTTPException(status_code=400, detail="Workspace is outside WORKSPACE_ROOT")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid workspace root")
     os.makedirs(root, exist_ok=True)
     return root
 
@@ -68,6 +78,47 @@ def _resolve_workspace_path(relative_path: Optional[str], *, allow_empty: bool =
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid path")
     return target
+
+
+def _resolve_workspace_folder_from_name(workspace_name: str) -> str:
+    raw_name = (workspace_name or "").strip()
+    if not raw_name:
+        raise HTTPException(status_code=400, detail="workspace_name required")
+    if ".." in raw_name or "/" in raw_name or "\\" in raw_name:
+        raise HTTPException(status_code=400, detail="Invalid workspace_name")
+
+    safe_name = _sanitize_workspace_name(raw_name)
+    workspace_path = os.path.abspath(os.path.join(WORKSPACE_ROOT, safe_name))
+    try:
+        if os.path.commonpath([WORKSPACE_ROOT, workspace_path]) != WORKSPACE_ROOT:
+            raise HTTPException(status_code=400, detail="Invalid workspace_name")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid workspace_name")
+    return workspace_path
+
+
+def zip_workspace(workspace_name: str):
+    workspace_path = _resolve_workspace_folder_from_name(workspace_name)
+
+    if not os.path.exists(workspace_path) or not os.path.isdir(workspace_path):
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    safe_name = os.path.basename(workspace_path.rstrip("\\/"))
+    zip_path = os.path.abspath(os.path.join(WORKSPACE_ROOT, f"{safe_name}.zip"))
+    try:
+        if os.path.commonpath([WORKSPACE_ROOT, zip_path]) != WORKSPACE_ROOT:
+            raise HTTPException(status_code=400, detail="Invalid workspace_name")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid workspace_name")
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for root, dirs, files in os.walk(workspace_path):
+            for file in files:
+                full_path = os.path.join(root, file)
+                arcname = os.path.relpath(full_path, workspace_path)
+                zipf.write(full_path, arcname)
+
+    return zip_path
 
 # Resolve container name from websocket query params or global/env.
 def _resolve_container_name(scope: Dict[str, Any]) -> Optional[str]:
@@ -92,8 +143,8 @@ def _ensure_workspace_dir() -> str:
     global CURRENT_DIR
     if CURRENT_DIR and os.path.isdir(CURRENT_DIR):
         return CURRENT_DIR
-    os.makedirs(DOCKER_HOST_ROOT, exist_ok=True)
-    default_path = os.path.join(DOCKER_HOST_ROOT, DEFAULT_WORKSPACE_NAME)
+    os.makedirs(WORKSPACE_ROOT, exist_ok=True)
+    default_path = os.path.join(WORKSPACE_ROOT, DEFAULT_WORKSPACE_NAME)
     os.makedirs(default_path, exist_ok=True)
     CURRENT_DIR = default_path
     return CURRENT_DIR
@@ -469,7 +520,7 @@ class TerminalContainerRequest(BaseModel):
 
 @app.get("/pick_folder")
 async def pick_folder():
-    """Triggers a real Windows folder selection dialog and copies to Docker Root if needed."""
+    """Triggers a real Windows folder selection dialog and copies to WORKSPACE_ROOT if needed."""
     global CURRENT_DIR
     import tkinter as tk
     from tkinter import filedialog
@@ -483,14 +534,19 @@ async def pick_folder():
     if selected_path:
         selected_path = os.path.abspath(selected_path)
         folder_name = os.path.basename(selected_path)
-        target_path = os.path.join(DOCKER_HOST_ROOT, folder_name)
+        target_path = os.path.join(WORKSPACE_ROOT, folder_name)
         
-        # If the selected path is already in the DOCKER_HOST_ROOT, use it directly
-        if selected_path.lower().startswith(DOCKER_HOST_ROOT.lower()):
+        # If the selected path is already in WORKSPACE_ROOT, use it directly
+        in_workspace_root = False
+        try:
+            in_workspace_root = os.path.commonpath([WORKSPACE_ROOT, selected_path]) == WORKSPACE_ROOT
+        except ValueError:
+            in_workspace_root = False
+        if in_workspace_root:
             CURRENT_DIR = selected_path
         else:
-            # Copy to DOCKER_HOST_ROOT
-            os.makedirs(DOCKER_HOST_ROOT, exist_ok=True)
+            # Copy to WORKSPACE_ROOT
+            os.makedirs(WORKSPACE_ROOT, exist_ok=True)
             
             # Simple clash prevention: if target exists, remove it first (clean slate)
             if os.path.exists(target_path):
@@ -517,32 +573,38 @@ async def pick_folder():
 
 @app.get("/pick_host_root")
 async def pick_host_root():
-    """Triggers a dialog specifically for the Docker Host Root."""
-    global DOCKER_HOST_ROOT
+    """Triggers a dialog specifically for the workspace root."""
+    global WORKSPACE_ROOT
     import tkinter as tk
     from tkinter import filedialog
     root = tk.Tk()
     root.withdraw()
     root.attributes('-topmost', True)
     
-    selected_path = filedialog.askdirectory(title="Select Docker Host Root")
+    selected_path = filedialog.askdirectory(title="Select Workspace Root")
     root.destroy()
     
     if selected_path:
-        DOCKER_HOST_ROOT = os.path.abspath(selected_path)
-        return {"host_root": DOCKER_HOST_ROOT, "status": "success"}
+        WORKSPACE_ROOT = os.path.abspath(selected_path)
+        os.makedirs(WORKSPACE_ROOT, exist_ok=True)
+        return {"host_root": WORKSPACE_ROOT, "status": "success"}
     return {"status": "cancelled"}
 
 @app.post("/create_folder_workspace")
 async def create_folder_workspace(request: PathRequest):
     """Creates a new folder on the system and sets it as the workspace."""
     global CURRENT_DIR
+    os.makedirs(WORKSPACE_ROOT, exist_ok=True)
     if request.path:
         target_path = os.path.abspath(os.path.expanduser(request.path))
+        try:
+            if os.path.commonpath([WORKSPACE_ROOT, target_path]) != WORKSPACE_ROOT:
+                raise HTTPException(status_code=400, detail="Workspace path must be inside WORKSPACE_ROOT")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid workspace path")
     else:
-        os.makedirs(DOCKER_HOST_ROOT, exist_ok=True)
         workspace_name = _sanitize_workspace_name(request.name)
-        target_path = os.path.abspath(os.path.join(DOCKER_HOST_ROOT, workspace_name))
+        target_path = os.path.abspath(os.path.join(WORKSPACE_ROOT, workspace_name))
     try:
         if os.path.exists(target_path) and not os.path.isdir(target_path):
             raise HTTPException(status_code=400, detail="A file already exists at the requested workspace path")
@@ -698,15 +760,30 @@ async def run_file(request: RunFileRequest):
 
 @app.post("/update_host_root")
 async def update_host_root(request: PathRequest):
-    global DOCKER_HOST_ROOT
+    global WORKSPACE_ROOT
     if not request.path:
         raise HTTPException(status_code=400, detail="Path is required")
-    DOCKER_HOST_ROOT = os.path.abspath(request.path)
-    return {"status": "success", "new_root": DOCKER_HOST_ROOT}
+    WORKSPACE_ROOT = os.path.abspath(request.path)
+    os.makedirs(WORKSPACE_ROOT, exist_ok=True)
+    return {"status": "success", "new_root": WORKSPACE_ROOT}
 
 @app.get("/get_host_root")
 async def get_host_root():
-    return {"host_root": DOCKER_HOST_ROOT}
+    return {"host_root": WORKSPACE_ROOT}
+
+@app.post("/zip_workspace")
+def zip_workspace_api(data: dict):
+    workspace_name = data.get("workspace_name")
+
+    if not workspace_name:
+        raise HTTPException(status_code=400, detail="workspace_name required")
+
+    zip_path = zip_workspace(workspace_name)
+
+    return {
+        "message": "Workspace zipped successfully",
+        "zip_path": zip_path
+    }
 
 @app.post("/terminal/set_container")
 async def set_terminal_container(request: TerminalContainerRequest):
@@ -718,7 +795,7 @@ async def set_terminal_container(request: TerminalContainerRequest):
 
 @app.post("/close_workspace")
 async def close_workspace():
-    """Closes the current workspace and REMOVES it if it's within the Docker Host Root."""
+    """Closes the current workspace and REMOVES it if it's within WORKSPACE_ROOT."""
     global CURRENT_DIR
     if not CURRENT_DIR:
         return {"status": "success"}
@@ -727,11 +804,16 @@ async def close_workspace():
     CURRENT_DIR = None # Clear immediately to avoid reuse
     
     try:
-        norm_curr = os.path.normpath(path_to_delete).lower()
-        norm_root = os.path.normpath(DOCKER_HOST_ROOT).lower()
+        norm_curr = os.path.normpath(path_to_delete)
+        norm_root = os.path.normpath(WORKSPACE_ROOT)
+        inside_root = False
+        try:
+            inside_root = os.path.commonpath([norm_root, norm_curr]) == norm_root and norm_curr != norm_root
+        except ValueError:
+            inside_root = False
         
-        # Check if the project is inside DOCKER_HOST_ROOT
-        if norm_curr.startswith(norm_root) and len(norm_curr) > len(norm_root):
+        # Check if the project is inside WORKSPACE_ROOT
+        if inside_root:
             if os.path.exists(path_to_delete):
                 # Retry loop to handle Windows file locks (e.g. while Docker is stopping)
                 import time

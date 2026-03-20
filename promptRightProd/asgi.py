@@ -37,6 +37,7 @@ async def application(scope, receive, send):
         
         module1_paths = ["/pick_folder", "/create_folder_workspace", "/create_item", "/save_file", 
                         "/view_file", "/run_file", "/mini_ide", "/list_files", "/delete_item",
+                        "/zip_workspace",
                         "/close_workspace", "/get_host_root", "/update_host_root", "/pick_host_root"]
         
         if path in module1_paths or path.startswith("/docs") or path.startswith("/openapi.json"):
