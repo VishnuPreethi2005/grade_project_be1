@@ -1,0 +1,10 @@
+# Grading Diagram Criteria Snippet
+# Used when evaluating student diagrams
+name: grading_diagram_criteria_snippet
+version: "1.0"
+description: Snippet for diagram evaluation criteria
+
+prompt: |
+  DIAGRAM GRADING REQUIREMENTS:
+  Use the following specific criteria to evaluate the student's diagrams:
+  {diagram_criteria_json}

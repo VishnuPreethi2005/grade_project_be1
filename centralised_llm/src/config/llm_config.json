@@ -1,0 +1,124 @@
+{
+  "openai": {
+    "class": "AZUREOpenAILLM",
+    "module": "centralised_llm.src.llms.Azure_openai_llm",
+    "api_key": "",
+    "model": "gpt-4.1-nano",
+    "temperature": 0.7,
+    "max_tokens": 512,
+    "top_p": 1.0,
+    "n": 1,
+    "stop": null,
+    "frequency_penalty": 0.0,
+    "presence_penalty": 0.0
+  },
+  "mistral": {
+    "class": "MistralLLM",
+    "module": "centralised_llm.src.llms.mistral_llm",
+    "api_key": "",
+    "model": "mistralai/Mixtral-8x7B-Instruct-v0.1",
+    "temperature": 0.7,
+    "max_tokens": 512,
+    "stop": [
+      "</s>",
+      "[/INST]"
+    ],
+    "top_p": 0.7,
+    "top_k": 50,
+    "repetition_penalty": 1.0,
+    "stream_tokens": false,
+    "safety_model": null,
+    "n": 1
+  },
+  "deepseek": {
+    "class": "DeepSeekLLM",
+    "module": "centralised_llm.src.llms.Deepseek_llm",
+    "api_key": "",
+    "model": "deepseek-ai/DeepSeek-V3",
+    "temperature": 0.7,
+    "max_tokens": 512,
+    "stop": [
+      "</s>"
+    ],
+    "top_p": 0.7,
+    "top_k": 50,
+    "repetition_penalty": 1.0,
+    "stream_tokens": false,
+    "safety_model": null,
+    "n": 1
+  },
+  "meta_llama": {
+    "class": "MetaLlamaLLM",
+    "module": "centralised_llm.src.llms.Metallama_llm",
+    "api_key": "",
+    "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+    "temperature": 0.7,
+    "max_tokens": 512,
+    "stop": [
+      "</s>",
+      "<|eot_id|>"
+    ],
+    "top_p": 0.7,
+    "top_k": 50,
+    "repetition_penalty": 1.0,
+    "stream_tokens": false,
+    "safety_model": null,
+    "n": 1
+  },
+  "qwen": {
+    "class": "QwenLLM",
+    "module": "centralised_llm.src.llms.Qwen_llm",
+    "api_key": "",
+    "model": "Qwen/Qwen2.5-72B-Instruct-Turbo",
+    "temperature": 0.7,
+    "max_tokens": 512,
+    "stop": [
+      "</s>",
+      "<|endoftext|>"
+    ],
+    "top_p": 0.7,
+    "top_k": 50,
+    "repetition_penalty": 1.0,
+    "stream_tokens": false,
+    "safety_model": null,
+    "n": 1
+  },
+  "gemini": {
+    "class": "GeminiGradingClient",
+    "module": "centralised_llm.src.llms.gemini_genai_llm",
+    "api_key": "",
+    "model": "gemini-3-flash-preview",
+    "temperature": 0.2,
+    "max_tokens": 65536,
+    "top_p": 0.95,
+    "top_k": 40,
+    "n": 1,
+    "stop_sequences": null,
+    "max_retries": 3,
+    "timeout": null,
+    "safety_settings": [
+      {
+        "category": "HARM_CATEGORY_HARASSMENT",
+        "threshold": "BLOCK_NONE"
+      },
+      {
+        "category": "HARM_CATEGORY_HATE_SPEECH",
+        "threshold": "BLOCK_NONE"
+      },
+      {
+        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+        "threshold": "BLOCK_NONE"
+      },
+      {
+        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+        "threshold": "BLOCK_NONE"
+      }
+    ],
+    "system_instruction": null,
+    "convert_system_message_to_human": false,
+    "cached_content": null,
+    "response_modalities": null,
+    "client_options": null,
+    "transport": "rest"
+  }
+}

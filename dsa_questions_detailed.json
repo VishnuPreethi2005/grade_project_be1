@@ -1,0 +1,1012 @@
+{
+  "Array": [
+    {
+      "title": "Two Sum - Pair with given Sum",
+      "url": "https://www.geeksforgeeks.org/dsa/check-if-pair-with-given-sum-exists-in-array/",
+      "description": "Given an arrayarr[]of n integers and atargetvalue, check if there exists a pair whose sum equals the target. This is a variation of the2-Sum problem.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Generating all Possible Pairs - O(n2) time and O(1) space",
+        "[Better Approach 1] Sorting and Binary Search - O(n × log(n)) time and O(1) space",
+        "[Better Approach 2] Sorting and Two-Pointer Technique - O(n × log(n)) time and O(1) space",
+        "[Expected Approach] Using Hash Set - O(n) time and O(n) space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Product of Array Except Self",
+      "url": "https://www.geeksforgeeks.org/dsa/a-product-array-puzzle/",
+      "description": "Given an array arr[] of n integers, construct aproduct arrayres[] (of the same size) such that res[i] is equal to the product of all the elements of arr[] except arr[i].",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Using Nested Loops - O(n^2) Time and O(1) Space",
+        "[Efficient Approach] Using Product Array - O(n) Time and O(1) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Maximum Subarray Sum  - Kadane's Algorithm",
+      "url": "https://www.geeksforgeeks.org/dsa/largest-sum-contiguous-subarray/",
+      "description": "Given an integer arrayarr[], find thesubarray(containing at least one element) which has themaximum possible sum, and return that sum.Note:Asubarrayis a continuous part of an array.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] By iterating over all subarrays - O(n^2) Time and O(1) Space",
+        "[Expected Approach] Using Kadane's Algorithm - O(n) Time and O(1) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Container with Most Water",
+      "url": "https://www.geeksforgeeks.org/dsa/container-with-most-water/",
+      "description": "Given an arrayarr[]ofnon-negativeintegers, where each elementarr[i]represents the height of the vertical lines, find themaximum amount of waterthat can be contained between any two lines, together with the x-axis.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Checking all possible boundaries - O(n^2) Time and O(1) Space",
+        "[Expected Approach] Using Two Pointers - O(n) Time and O(1) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Find the Factorial of a large number",
+      "url": "https://www.geeksforgeeks.org/dsa/factorial-large-number/",
+      "description": "Factorial of a non-negative integer, is the multiplication of all integers smaller than or equal to n.",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Trapping Rain Water Problem",
+      "url": "https://www.geeksforgeeks.org/dsa/trapping-rain-water/",
+      "description": "Given an array arr[] of size n consisting of non-negative integers, where each element represents the height of a bar in an elevation map and the width of each bar is 1, determine the total amount of water that can be trapped between the bars after it rains.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Brute Force - O(n^2) Time and O(1) Space",
+        "[Better Approach] Prefix and suffix max for each index - O(n) Time and O(n) Space",
+        "[Expected Approach] Using Two Pointers - O(n) Time and O(1) Space",
+        "[Alternate Approach] Using Stack - O(n) Time and O(n) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Merge Overlapping Intervals",
+      "url": "https://www.geeksforgeeks.org/dsa/merging-intervals/",
+      "description": "Given an array of time intervals wherearr[i] = [starti, endi], our task is to merge all the overlapping intervals into one and output the result which should have only mutually exclusive intervals.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Checking All Possible Overlaps – O(n^2) Time and O(n) Space",
+        "[Expected Approach] Checking Last Merged Interval– O(n*log(n)) Time and O(n) Space"
+      ],
+      "last_updated": "Last Updated :"
+    }
+  ],
+  "Matrix": [
+    {
+      "title": "Print a given matrix in spiral form",
+      "url": "https://www.geeksforgeeks.org/dsa/print-a-given-matrix-in-spiral-form/",
+      "description": "Given a matrixmat[][] ofsizem x n, the task is to print all elements of the matrix in spiral form.",
+      "examples": [],
+      "approaches": [
+        "[Approach] Using Simulation by Visited Matrix - O(m*n) Time and O(m*n) Space",
+        "[Expected Approach] Using Boundary Traversal - O(m*n) Time and O(1) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Program to find transpose of a matrix",
+      "url": "https://www.geeksforgeeks.org/dsa/program-to-find-transpose-of-a-matrix/",
+      "description": "Given a 2D matrixmat[][], compute itstranspose. Thetransposeof a matrix is formed by converting all rows of mat[][] into columns and all columns into rows.",
+      "examples": [],
+      "approaches": [
+        "[Approach 1] Brute Force Matrix Transposition O(n*m) Time and O(n*m) Space",
+        "[Approach 2] Using constant space for Square Matrix O(n*n) Time and O(1) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Word Search in a 2D Grid of characters",
+      "url": "https://www.geeksforgeeks.org/dsa/search-a-word-in-a-2d-grid-of-characters/",
+      "description": "Given a2D grid m*nof characters and aword, the task is to findall occurrencesof the given word in the grid. A word can be matched in all8 directionsat any point. Word is said to be found in a direction if all characters match in this direction(not in zig-zag form).The 8 directions are, Horizontally ",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Using Recursion - O(m*n*k) Time and O(k) Space",
+        "[Expected Approach] Using Iteration - O(m*n*k) Time and O(1) Space"
+      ],
+      "last_updated": "Last Updated :"
+    }
+  ],
+  "String": [
+    {
+      "title": "Longest Substring Without Repeating Characters",
+      "url": "https://www.geeksforgeeks.org/dsa/length-of-the-longest-substring-without-repeating-characters/",
+      "description": "Given a stringshavinglowercasecharacters, find the length of the longest substring without repeating characters.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Substrings Starting From Every Index - O(26*n) Time and O(1) Space",
+        "[Expected Approach 1] Using Sliding Window - O(n) Time and O(1) Space",
+        "[Expected Approach 2] Using Last Index of Each Character - O(n) Time and O(1) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Maximum consecutive repeating character in string",
+      "url": "https://www.geeksforgeeks.org/dsa/maximum-consecutive-repeating-character-string/",
+      "description": "Given a strings, the task is to find themaximum consecutive repeating characterin the string. Note:We do not need to consider the overall count, but the count of repeating that appears in one place.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Using Nested Loop",
+        "[Expected Approach 1] Optimised Nested Loops",
+        "[Expected Approach 2] Using Counter Variable"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Smallest window in a String containing all characters of other String",
+      "url": "https://www.geeksforgeeks.org/dsa/find-the-smallest-window-in-a-string-containing-all-characters-of-another-string/",
+      "description": "Given two stringssandp, the task is to find the smallest substring insthat contains all characters ofp, including duplicates. If no such substring exists, return \"\". If multiple substrings of the same length are found, return the one with the smallest starting index.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] By Generating all the Substrings - O(n^3) time and O(n) space:",
+        "[Better Approach] By using Binary Search on Answer - O(n*log(n)) Time and O(1) Space:",
+        "[Expected Approach] Using Window Sliding - O(n) Time and O(1) Space:"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Group Anagrams Together",
+      "url": "https://www.geeksforgeeks.org/dsa/given-a-sequence-of-words-print-all-anagrams-together/",
+      "description": "Given an array of wordsarr[], the task is to groups strings that areanagrams. Ananagramis a word or phrase formed by rearranging the letters of another, using all the original letters exactly once.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Using sorted words as keys - O(n*k*log(k)) Time and O(n*k) Space",
+        "[Expected Approach] Using Frequency as keys - O(n*k) Time and O(n*k) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Sentence Palindrome",
+      "url": "https://www.geeksforgeeks.org/dsa/sentence-palindrome-palindrome-removing-spaces-dots-etc/",
+      "description": "Given a sentences, determine whether it is apalindrome sentenceor not. A palindrome sentence is a sequence of characters that reads the same forward and backward after: Converting all uppercase letters to lowercase.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Normalization and Reverse Check-O(n) Time and O(n) Space",
+        "[Expected Approach] Using Two Pointers - O(n) Time and O(1) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Longest Palindromic Substring",
+      "url": "https://www.geeksforgeeks.org/dsa/longest-palindromic-substring/",
+      "description": "Given a strings, find the longest substring which is a palindrome. If there are multiple answers, then find the first appearing substring.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Generating all sub-strings - O(n3) time and O(1) space",
+        "[Better Approach - 1] Using Dynamic Programming - O(n2) time and O(n2) space",
+        "[Better Approach - 2] Using Expansion from center - O(n2) time and O(1) space",
+        "[Expected Approach] Using Manacher’s Algorithm - O(n) time and O(n) space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Palindrome Substrings Count",
+      "url": "https://www.geeksforgeeks.org/dsa/count-palindrome-sub-strings-string/",
+      "description": "Given a strings, find the total number of palindromic substrings of length greater than or equal to 2 present in the string.A substring is palindromic if it reads the same forwards and backwards.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] By Generating All Possible Substrings - O(n^3) Time and O(1) Space",
+        "[Better Approach 1] Using Memoization - O(n^2) Time and O(n^2) Space",
+        "[Better Approach 2] Using Bottom-Up DP (Tabulation) - O(n^2) Time and O(n^2) Space",
+        "Expected Approach - Continued article"
+      ],
+      "last_updated": "Last Updated :"
+    }
+  ],
+  "Searching and Sorting": [
+    {
+      "title": "Unknown",
+      "url": "https://www.geeksforgeeks.org/problems/search-in-a-rotated-array4618/1",
+      "description": "",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Unknown"
+    },
+    {
+      "title": "Unknown",
+      "url": "https://www.geeksforgeeks.org/problems/peak-element/1",
+      "description": "",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Unknown"
+    },
+    {
+      "title": "Unknown",
+      "url": "https://www.geeksforgeeks.org/problems/k-th-element-of-two-sorted-array1317/1",
+      "description": "",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Unknown"
+    },
+    {
+      "title": "Unknown",
+      "url": "https://www.geeksforgeeks.org/problems/allocate-minimum-number-of-pages0937/1",
+      "description": "",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Unknown"
+    },
+    {
+      "title": "Unknown",
+      "url": "https://www.geeksforgeeks.org/problems/kth-missing-positive-number-in-a-sorted-array/1",
+      "description": "",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Unknown"
+    },
+    {
+      "title": "Unknown",
+      "url": "https://www.geeksforgeeks.org/problems/inversion-of-array-1587115620/1",
+      "description": "",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Unknown"
+    },
+    {
+      "title": "Unknown",
+      "url": "https://www.geeksforgeeks.org/problems/merge-two-sorted-arrays-1587115620/1",
+      "description": "",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Unknown"
+    },
+    {
+      "title": "Unknown",
+      "url": "https://www.geeksforgeeks.org/problems/chocolate-distribution-problem3825/1",
+      "description": "",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Unknown"
+    }
+  ],
+  "Hashing": [
+    {
+      "title": "Unknown",
+      "url": "https://www.geeksforgeeks.org/problems/find-all-pairs-whose-sum-is-x5808/1",
+      "description": "",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Unknown"
+    },
+    {
+      "title": "Unknown",
+      "url": "https://www.geeksforgeeks.org/problems/longest-subsequence-with-difference/1",
+      "description": "",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Unknown"
+    },
+    {
+      "title": "Unknown",
+      "url": "https://www.geeksforgeeks.org/problems/longest-consecutive-subsequence2449/1",
+      "description": "",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Unknown"
+    },
+    {
+      "title": "Unknown",
+      "url": "https://www.geeksforgeeks.org/problems/count-subarray-with-given-xor/1",
+      "description": "",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Unknown"
+    }
+  ],
+  "Linked List": [
+    {
+      "title": "Reverse a Linked List",
+      "url": "https://www.geeksforgeeks.org/dsa/reverse-a-linked-list/",
+      "description": "Given theheadof a linked list, reverse the list and return the new head.",
+      "examples": [],
+      "approaches": [
+        "[Approach] Using Iterative Method - O(n) Time and O(1) Space",
+        "[Alternate Approach 1] Using Recursion Method- O(n) Time and O(n) Space",
+        "[Alternate Approach 2] Using Stack - O(n) Time and O(n) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Detect Cycle in Linked List",
+      "url": "https://www.geeksforgeeks.org/dsa/detect-loop-in-a-linked-list/",
+      "description": "Given the head of a singly linked list, determine whether the list contains a cycle. A cycle exists if, while traversing the list through next pointers, you encounter a node that has already been visited instead of eventually reaching nullptr.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Using HashSet - O(n) Time and O(n) Space",
+        "[Expected Approach] Using Floyd's Cycle-Finding Algorithm"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Merge two sorted linked lists",
+      "url": "https://www.geeksforgeeks.org/dsa/merge-two-sorted-linked-lists/",
+      "description": "Given theheadsof two sorted linked lists, merge them into a single sorted linked list and return the head of the merged list.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] By Using Array - O((n+m) × log(n+m)) Time and O(n+m) Space",
+        "[Better Approach] Using Recursive Merge - O(n+m) Time and O(n+m) Space",
+        "[Efficient Approach] Using Iterative Merge - O(n+m) Time and O(1) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Merge K sorted linked lists",
+      "url": "https://www.geeksforgeeks.org/dsa/merge-k-sorted-linked-lists/",
+      "description": "Givenksorted linked lists of different sizes, we need to merge them into a single list while maintaining their sorted order.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach - 1] - By Merging List One by One",
+        "[Naive Approach - 2] - By repeatedly selecting the minimum node",
+        "[Expected Approach - 1] -Using Min Heap (Works better for unequal sized lists)",
+        "[ExpectedApproach- 2]-Using DivideandConquer(Works better for equal sized lists)"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Remove Nth node from end of the Linked List",
+      "url": "https://www.geeksforgeeks.org/dsa/remove-nth-node-from-end-of-the-linked-list/",
+      "description": "Given a linked list. The task is toremovetheNthnode from theendof the linked list.",
+      "examples": [],
+      "approaches": [
+        "[Expected Approach - 1] Find Equivalent node from Front - O(n) Time and O(1) Space:",
+        "[Expected Approach - 2] Using Fast and Slow Pointer - O(n) Time and O(1) Space:"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Unknown",
+      "url": "https://www.geeksforgeeks.org/problems/reorder-list/1",
+      "description": "",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Unknown"
+    },
+    {
+      "title": "Add 1 to a number represented as linked list",
+      "url": "https://www.geeksforgeeks.org/dsa/add-1-number-represented-linked-list/",
+      "description": "Anumberis represented inlinked listsuch that each digit corresponds to a node in linked list. The task is toadd1 to it.",
+      "examples": [],
+      "approaches": [
+        "[Expected Approach - 1] Using Recursive Method - O(n) Time and O(n) Space:",
+        "[Expected Approach - 2] Using Iterative Method - O(n) Time and O(1) Space:"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Clone a Linked List with Random Pointer",
+      "url": "https://www.geeksforgeeks.org/dsa/a-linked-list-with-next-and-arbit-pointer/",
+      "description": "Given aheadof linked list where each node has two links:next pointerpointing to the next node andrandom pointerto any random node in the list. Create a clone of this linked list.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach - 1] Using Hashing - O(n) Time and O(n) Space",
+        "[Naive Approach - 2] Using Hashing and Recursion- O(n) Time and O(n) Space",
+        "[Expected Approach] By Inserting Nodes In-place - O(n) Time and O(1) Space"
+      ],
+      "last_updated": "Last Updated :"
+    }
+  ],
+  "Stack, Queue & Deque": [
+    {
+      "title": "Infix to Postfix Expression",
+      "url": "https://www.geeksforgeeks.org/dsa/convert-infix-expression-to-postfix-expression/",
+      "description": "Given a stringsrepresenting an infix expression (\"operand1 operator operand2\" ), Convert it into its postfix notation (\"operand1 operand2 operator\"). Note:The precedence order is as follows: (^) has the highest precedence and is evaluated from right to left, (* and /) come next with left to right as",
+      "examples": [],
+      "approaches": [
+        "[Approach] Using Stack - O(n) Time and O(n) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Next Greater Element in Array",
+      "url": "https://www.geeksforgeeks.org/dsa/next-greater-element/",
+      "description": "Given an arrayarr[]of integers, determine theNext Greater Element(NGE) for every element in the array, maintaining the order of appearance. The Next Greater Element for an element x is defined as the first element to the right of x in the array that is strictly greater than x.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Using Nested Loops - O(n2) Time and O(1) Space",
+        "[Expected Approach] Using Stack - O(n) Time and O(n) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Largest Rectangular Area in a Histogram",
+      "url": "https://www.geeksforgeeks.org/dsa/largest-rectangular-area-in-a-histogram-using-stack/",
+      "description": "Given an arrayarr[]representing a histogram, where each element denotes the height of a bar and every bar has a uniform width of 1 unit, find the largest rectangular area that can be formed within the histogram. The rectangle must be formed using contiguous bars.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] By Finding Max Area of Rectangles all Heights - O(n2) Time and O(1) Space",
+        "[Expected Approach] Using Stack - O(n) Time and O(n) Space",
+        "[Optimized Approach] Using Single Stack - O(n) Time and O(n) Space",
+        "[Alternate Approach] Using Divide and Conquer - O(n log(n)) Time and O(n) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Delete middle element of a stack",
+      "url": "https://www.geeksforgeeks.org/dsa/delete-middle-element-stack/",
+      "description": "Given a stack withpush(),pop(), andempty()operations, The task is to delete themiddleelementof it without using any additional data structure. Input: s = [10, 20, 30, 40, 50]Output: [50, 40, 20, 10]Explanation: The bottom-most element will be 10 and the top-most element will be 50. Middle element wi",
+      "examples": [],
+      "approaches": [
+        "Approach - Using Vector - O(n) Time and O(n) Space",
+        "[Expected Approach 1] - Using Recursion - O(n) Time and O(n) Space",
+        "[ExpectedApproach 2] - Using Stack -O(n) Time and O(n) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Longest Valid Parentheses Substring",
+      "url": "https://www.geeksforgeeks.org/dsa/length-of-the-longest-valid-substring/",
+      "description": "Given a stringsconsisting of opening and closing parenthesis '(' and ')', find the length of the longest valid parenthesis substring.Avalid parenthesissubstring is one where every opening bracket '(' has a corresponding closing bracket ')' in the correct order.",
+      "examples": [],
+      "approaches": [
+        "[Expected Approach - 1] Using Stack - O(n) Time and O(n) Space",
+        "[Expected Approach - 2] Using Dynamic Programming- O(n) Time and O(n) Space",
+        "[Expected Approach - 3] Using Two Traversals - O(n) Time and O(1) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Sum of Max of Subarrays",
+      "url": "https://www.geeksforgeeks.org/dsa/sum-of-maximum-elements-of-all-possible-sub-arrays-of-an-array/",
+      "description": "Given an arrayarr[], the task is to find the sum of the maximumelementsof every possible non-empty sub-arrays of the given arrayarr[].",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Generate all Subarrays - O(n²) Time and O(1) Space",
+        "[Expected Approach] Using Monotonic Stack - O(n) Time and O(n) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Next greater element in a Circular Array",
+      "url": "https://www.geeksforgeeks.org/dsa/find-the-next-greater-element-in-a-circular-array/",
+      "description": "Given a circular arrayarr[], find thenext greater elementfor each element in the array.Note:The next greater element of an element is the first next element greater than it when traversing the array in order (circularly). If no such element exists, return -1 for that position.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] - Using Nested Loops - O(n^2) Time and O(1) Space",
+        "[Expected Approach] Using Stack - O(n) Time and O(n) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Longest subarray with absolute difference between any pair at most X",
+      "url": "https://www.geeksforgeeks.org/dsa/longest-subarray-in-which-absolute-difference-between-any-two-element-is-not-greater-than-x/",
+      "description": "Given an integer arrayarr[]and an integerx, Find the longest sub-array where the absolute difference between any two elements is not greater thanx.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Checking all subarrays - O(n3) Time and O(1) Space",
+        "[Better Approach] Using Sliding Window and Sorted Map - O(n * log n) Time and O(n) Space",
+        "[Expected Approach] Using Dequeues - O(n) Time and O(n) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Sliding Window Maximum (Maximum of all subarrays of size K)",
+      "url": "https://www.geeksforgeeks.org/dsa/sliding-window-maximum-maximum-of-all-subarrays-of-size-k/",
+      "description": "Given an arrayarr[]of integers and an integerk, your task is to find the maximum value for each contiguous subarray of sizek. The output should be an array of maximum values corresponding to each contiguous subarray.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] - Using Nested Loops - O(n * k) Time and O(1) Space",
+        "[Better Approach] - Using Max-Heap - (n * log n) Time and O(n) Space",
+        "[Expected Approach] - Using Deque - O(n) Time and O(k) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Stack Coding Problems for SDE Interviews",
+      "url": "https://www.geeksforgeeks.org/dsa/top-50-problems-on-stack-data-structure-asked-in-interviews/",
+      "description": "AStackis a linear data structure in which the insertion of a new element and removal of an existing element takes place at the same end, represented as the top of the stack. To learn about Stack Data Structure in detail, please refer to theTutorial on Stack Data Structure.",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Queue Coding Questions for SDE Interviews",
+      "url": "https://www.geeksforgeeks.org/dsa/top-50-problems-on-queue-data-structure-asked-in-sde-interviews/",
+      "description": "AQueueis defined as a linear data structure that is open at both ends and the operations are performed inFirst In First Out (FIFO)order. The element which is first pushed into the order, the operation is first performed on that. Circular Array Implementation",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Deque Interview Questions for SDE Interviews",
+      "url": "https://www.geeksforgeeks.org/dsa/top-problems-on-deque-data-structure-asked-in-sde-interviews/",
+      "description": "ADeque(Double-Ended Queue) is a flexible data structure that supports insertion and deletion from both ends in O(1) time. In SDE interviews, deques are frequently tested in problems involving efficient subarray computations, maintaining order constraints, and implementing caching mechanisms. Circula",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Last Updated :"
+    }
+  ],
+  "Tree": [
+    {
+      "title": "Maximum Depth or Height of a Binary Tree",
+      "url": "https://www.geeksforgeeks.org/dsa/find-the-maximum-depth-or-height-of-a-tree/",
+      "description": "Given therootof abinary tree, find themaximum depthof the tree.The maximum depth or height of the tree is thenumber of edgesin the tree from the root to the deepest node.",
+      "examples": [],
+      "approaches": [
+        "[Approach 1] Using Recursion",
+        "[Approach 2] Level Order Traversal- O(n)  Time and O(n) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Check if two trees are Mirror",
+      "url": "https://www.geeksforgeeks.org/dsa/check-if-two-trees-are-mirror/",
+      "description": "Given twoBinary Trees, the task is to check if two trees aremirrorof each other or not. For two trees ‘a’ and ‘b’ to be mirror images, the following three conditions must be true: Their root node’s key must be same",
+      "examples": [],
+      "approaches": [
+        "[Expected Approach - 1] Recursive Approach - O(n) Time and O(h) Space",
+        "[Expected Approach - 2] Iterative Approach - O(n) Time and O(n) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Flip Binary Tree",
+      "url": "https://www.geeksforgeeks.org/dsa/flip-binary-tree/",
+      "description": "Given abinary tree,the task is toflipthe binary tree towards theright direction that isclockwise.",
+      "examples": [],
+      "approaches": [
+        "[Expected Approach - 1] Using Recursion - O(n) Time and O(n) Space",
+        "[Expected Approach - 2]Iterative Approach- O(n) Time and O(n) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Maximum Path Sum in a Binary Tree",
+      "url": "https://www.geeksforgeeks.org/dsa/find-maximum-path-sum-in-a-binary-tree/",
+      "description": "Given therootof the binary tree, Find themaximum path sum. The path may start and end at any node in the tree.",
+      "examples": [],
+      "approaches": [
+        "[Approach]Using Recursion - O(n) Time and O(h) Recursive Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Level Order Traversal (Breadth First Search) of Binary Tree",
+      "url": "https://www.geeksforgeeks.org/dsa/level-order-tree-traversal/",
+      "description": "Level Order Traversal technique is a method to traverse a Tree such that all nodes present in the same level are traversed completely before traversing the next level.",
+      "examples": [],
+      "approaches": [
+        "[Approach] Using Recursion - O(n) time and O(n) space",
+        "[Expected Approach] Using Queue (Iterative) - O(n) time and O(n) space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Check if a Binary Tree is subtree of another binary tree | Set 1",
+      "url": "https://www.geeksforgeeks.org/dsa/check-if-a-binary-tree-is-subtree-of-another-binary-tree/",
+      "description": "Giventwobinary trees, check if the first tree is asubtreeof the second one. A subtree of a treeT(root1)is a treeS(root2)consisting of a node inTand all of its descendants inT. The subtree corresponding to the root node is theentire treeand the subtree corresponding to any other node is called aprope",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Check if a Binary Tree is BST or not",
+      "url": "https://www.geeksforgeeks.org/dsa/a-program-to-check-if-a-binary-tree-is-bst-or-not/",
+      "description": "Given therootof a binary tree, determine whether it is aBinary Search Tree(BST). A Binary Search Tree is a binary tree that satisfies the following conditions:",
+      "examples": [],
+      "approaches": [
+        "[Approach - 1] Using Specified range of Min and Max Values",
+        "[Approach - 2] Using Inorder Traversal",
+        "[Approach - 3] Using Morris Traversal - O(n) Time and O(1) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "k-th Smallest in BST",
+      "url": "https://www.geeksforgeeks.org/dsa/find-k-th-smallest-element-in-bst-order-statistics-in-bst/",
+      "description": "Given therootof aBinary Search Tree (BST) and a positive integerk, find thekthsmallest element in the Binary Search Tree.",
+      "examples": [],
+      "approaches": [
+        "[Expected Approach] Using In-Order traversal - O(k) Time and O(h) Space",
+        "[Expected  Approach] Using Morris Inorder Traversal - O(n) Time and O(1) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Lowest Common Ancestor in a Binary Search Tree",
+      "url": "https://www.geeksforgeeks.org/dsa/lowest-common-ancestor-in-a-binary-search-tree/",
+      "description": "Given therootof a Binary Search Tree and two noden1andn2, find theLowest Common Ancestor (LCA).LCA is the deepest node that has both n1 and n2 as descendants. Note:Both node are always present in the Binary Search Tree.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] LCA by Normal Binary Tree Methods - O(n) Time and O(n) Space",
+        "[Better Approach] Using BST Properties (Recursive Approach) - O(h) Time and O(h) Space",
+        "[Expected Approach] Using BST Properties (Iterative Method) - O(h) Time and O(1) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Trie Data Structure",
+      "url": "https://www.geeksforgeeks.org/dsa/trie-insert-and-search/",
+      "description": "The Triedata structureis used to store a set of keys represented as strings. It allows for efficientretrievalandstorageof keys, making it highly effective in handling large datasets. Trie supports operations such asinsertion,search,deletionof keys, andprefixsearches. Trie data structureconsists of n",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Last Updated :"
+    }
+  ],
+  "Heap": [
+    {
+      "title": "Find Median from Running Data Stream",
+      "url": "https://www.geeksforgeeks.org/dsa/median-of-stream-of-integers-running-integers/",
+      "description": "Given a data streamarr[]where integers are read sequentially, Determine themedianof the elements encountered so far after each new integer is read. There are two cases for median on the basis of data set size.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Using Insertion Sort",
+        "[Expected Approach] Using Heaps"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Largest triplet product in a stream",
+      "url": "https://www.geeksforgeeks.org/dsa/largest-triplet-product-stream/",
+      "description": "Given a stream of integers represented as arr[]. For each index i from 0 to n-1, print the multiplication of the largest, second largest, and third largest element of the subarray arr[0...i]. If i < 2 print -1.",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Connect n ropes with minimum cost",
+      "url": "https://www.geeksforgeeks.org/dsa/connect-n-ropes-minimum-cost/",
+      "description": "Given an arrayarr[]of rope lengths, connect all ropes into a single rope with theminimumtotal cost. The cost to connect two ropes is thesumof their lengths.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Greedy with Repeated Sorting - O(n2*log(n)) Time and O(n) Space",
+        "[Expected Approach] Greedy with Heap - O(n*log(n)) Time and O(n) Space"
+      ],
+      "last_updated": "Last Updated :"
+    }
+  ],
+  "Graph": [
+    {
+      "title": "Clone an Undirected Graph",
+      "url": "https://www.geeksforgeeks.org/dsa/clone-an-undirected-graph/",
+      "description": "Given aconnected undirected graphrepresented by adjacency list,adjList[][]withnnodes andmedges, with each node having adistinct labelfrom0 to n-1, and each adj[i] represents the list of vertices connected to vertex i. Create acloneof the graph, where each node in the graph contains an integervaland ",
+      "examples": [],
+      "approaches": [
+        "[Approach 1] Using BFS traversal - O(V+E) Time and O(V) Space",
+        "[Approach 2] Using DFS traversal - O(V+E) Time and O(V) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Unknown",
+      "url": "https://www.geeksforgeeks.org/problems/course-schedule/1",
+      "description": "",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Unknown"
+    },
+    {
+      "title": "Atlantic pacific water flow",
+      "url": "https://www.geeksforgeeks.org/dsa/atlantic-pacific-water-flow/",
+      "description": "There is anN x Mrectangular island that borders both the Pacific Ocean and the Atlantic Ocean. The Pacific Ocean touches the island's left and top edges, and the Atlantic Ocean touches the island's right and bottom edges. The island is partitioned into a grid of square cells. The island receives a l",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Detect Cycle in a Directed Graph",
+      "url": "https://www.geeksforgeeks.org/dsa/detect-cycle-in-a-graph/",
+      "description": "Given a directed graph represented by its adjacency listadj[][], determine whether the graph contains a cycle/Loop or not.A cycle is a path that starts and ends at the same vertex, following the direction of edges.",
+      "examples": [],
+      "approaches": [
+        "[Approach 1] Using  DFS - O(V + E) Time and O(V) Space",
+        "[Approach 2] Using  Topological Sorting - O(V + E) Time and O(V) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Bridges in a graph",
+      "url": "https://www.geeksforgeeks.org/dsa/bridge-in-a-graph/",
+      "description": "Given an undirected Graph, The task is to find the Bridges in this Graph. An edge in an undirected connected graph is a bridge if removing it disconnects the graph. For a disconnected undirected graph, the definition is similar, a bridge is an edge removal that increases the number of disconnected c",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Check whether a given graph is Bipartite or not",
+      "url": "https://www.geeksforgeeks.org/dsa/bipartite-graph/",
+      "description": "Given a graph withV verticesnumbered from0 to V-1and a list ofedges, determine whether the graph isbipartiteor not. Note:Abipartite graphis a type of graph where the set of vertices can be divided intotwo disjoint sets, sayUandV, such thatevery edge connects a vertex in U to a vertex in V,there aren",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Max Area of Island - Largest in Boolean Matrix",
+      "url": "https://www.geeksforgeeks.org/dsa/find-length-largest-region-boolean-matrix/",
+      "description": "Given a binary 2D matrix, find area of thelargest region of 1swhich are connectedhorizontally,verticallyordiagonally.",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Flood Fill Algorithm",
+      "url": "https://www.geeksforgeeks.org/dsa/flood-fill-algorithm/",
+      "description": "Given a 2D gridimg[][]representing an image, where each elementimg[i][j]is an integer that denotes the color of a pixel. Also there is a coordinates(sr, sc)representing the starting pixel (rowsrand columnsc) and an integernewColor, which represents the new color to apply.We need to perform aflood fi",
+      "examples": [],
+      "approaches": [
+        "[Approach 1]  Using Depth-First Search - O(m * n) Time and O(m * n) Auxiliary Space",
+        "[Approach 2]  Using Breadth-First Search - O(m * n) Time and O(m * n) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Strongly Connected Components",
+      "url": "https://www.geeksforgeeks.org/dsa/strongly-connected-components/",
+      "description": "In a directed graph, a Strongly Connected Component is a subset of vertices where every vertex in the subset is reachable from every other vertex in the same subset by traversing the directed edges. Finding theSCCsof a graph can provide important insights into the structure and connectivity of the g",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Brute Force Approach",
+        "[Expected Approach 1] Using Kasaraju's Algorithm"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Topological Sorting",
+      "url": "https://www.geeksforgeeks.org/dsa/topological-sorting/",
+      "description": "Topological sorting for Directed Acyclic Graph (DAG) is a linear ordering of vertices such that for every directed edge u→v, vertex u comes before v in the ordering. There may be several topological orderings for a graph. Applies only toDAGs(Directed Acyclic Graphs), and is not possible forcyclicoru",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Last Updated :"
+    }
+  ],
+  "Dynamic Programming & Greedy": [
+    {
+      "title": "Climbing stairs to reach the top",
+      "url": "https://www.geeksforgeeks.org/dsa/count-ways-reach-nth-stair/",
+      "description": "There arenstairs, and a person standing at the bottom wants to climb stairs to reach the top. The person can climb either1stair or2stairs at a time, the task is to count the number of ways that a person can reach at the top. Note:This problem is similar toCount ways to reach Nth stair (Order does no",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Coin Change - Count Ways to Make Sum",
+      "url": "https://www.geeksforgeeks.org/dsa/coin-change-dp-7/",
+      "description": "Given an integer array ofcoins[]ofsize nrepresenting different types ofdenominationsand an integersum, the task is to count all combinations of coins to make a given valuesum. Note:Assume that you have aninfinitesupply of each type of coin.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Using Recursion - O(2^sum) time and O(sum) space",
+        "[Better Approach 1] Using Top-Down DP (Memoization) -O(sum*n) time andO(sum*n)space",
+        "[Better Approach 2] Using Bottom-Up DP (Tabulation)–O(sum*n) time andO(sum*n)space",
+        "[Expected Approach] Using Space Optimized DP – O(sum*n) time and O(sum) space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "0/1 Knapsack Problem",
+      "url": "https://www.geeksforgeeks.org/dsa/0-1-knapsack-problem-dp-10/",
+      "description": "Givennitems where each item has some weight and profit associated with it and also given a bag with capacityW, [i.e., the bag can hold at mostWweight in it]. The task is to put the items into the bag such that the sum of profits associated with them is the maximum possible. Note:The constraint here ",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Using RecursionO(2^n) Time and O(n) Space",
+        "[Better Approach 1] Using Top-Down DP (Memoization)- O(n x W) Time and Space",
+        "[Better Approach 2] Using Bottom-Up DP (Tabulation) - O(n x W) Time and Space",
+        "[Expected Approach] Using Bottom-Up DP (Space-Optimized)- O(n x W) Time and O(W) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Longest Increasing Subsequence (LIS)",
+      "url": "https://www.geeksforgeeks.org/dsa/longest-increasing-subsequence-dp-3/",
+      "description": "Given an arrayarr[]of sizen, the task is to find thelengthof theLongest Increasing Subsequence (LIS)i.e., the longest possible subsequence in which the elements of the subsequence aresortedinincreasing order.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Using Recursion - Exponential Time and Linear Space",
+        "[Better Approach - 1] Using Memoization - O(n^2) Time and O(n) Space",
+        "[Better Approach - 2] Using DP (Bottom Up Tabulation) - O(n^2) Time and O(n) Space",
+        "[Expected Approach]Using Binary Search - O(n Log n) Time and O(n) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Longest Common Subsequence (LCS)",
+      "url": "https://www.geeksforgeeks.org/dsa/longest-common-subsequence-dp-4/",
+      "description": "Given two strings,s1ands2, the task is to find the length of the Longest Common Subsequence. If there is nocommon subsequence, return0. Asubsequenceis a string generated from the original string by deleting 0 or more characters, without changing the relative order of the remaining characters. For ex",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Using Recursion - O(2 ^ min(m, n)) Time and O(min(m, n)) Space",
+        "[Better Approach] Using Memoization (Top Down DP) - O(m * n) Time and O(m * n) Space",
+        "[Expected Approach 1] Using Bottom-Up DP (Tabulation) - O(m * n) Time and O(m * n) Space",
+        "[Expected Approach 2] Using Bottom-Up DP (Space-Optimization):"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Word Break",
+      "url": "https://www.geeksforgeeks.org/dsa/word-break-problem-dp-32/",
+      "description": "Given a stringsand y a dictionary ofnwordsdictionary, check ifscan be segmented into a sequence of valid words from the dictionary, separated by spaces.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Using Recursion- O(2^n) Time and O(n) Space",
+        "[Expected Approach - 1] Using Top-Down DP - O(n^2) Time and O(n+m) Space",
+        "[Expected Approach - 2] Using Bottom Up DP - O(n*m*k) time and O(n) space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Dice Throw",
+      "url": "https://www.geeksforgeeks.org/dsa/dice-throw-dp-30/",
+      "description": "Given n dices each with m faces, numbered from1 to m, the task is to find thenumber of waysto get sumx. x is thesummationof values oneach facewhen all the dice are thrown.",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Egg Dropping Puzzle | DP-11",
+      "url": "https://www.geeksforgeeks.org/dsa/egg-dropping-puzzle-dp-11/",
+      "description": "You are givennidentical eggs and you have access to ak-floored building from1tok. There exists a floorfwhere0<=f<=ksuch that any egg dropped from a floor higher thanfwill break, and any egg droppedfrom or belowfloor fwillnot break. There are a few rules given below:",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Using Recursion - O(n ^ k) Time and O(1) Space",
+        "[Better Approach] Using Memoization - O(n * k^2) Time and O(n * k) Space",
+        "[Expected Approach] Using Tabulation with Optimization - O(n * k) Time and O(n * k) Space",
+        "[Optimized Approach] Using Space-Optimized Table -O(n * k) Time and O(n) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Matrix Chain Multiplication",
+      "url": "https://www.geeksforgeeks.org/dsa/matrix-chain-multiplication-dp-8/",
+      "description": "Given the dimension of a sequence of matrices in an arrayarr[], where the dimension of theithmatrix is(arr[i-1] * arr[i]), the task is to find the most efficient way tomultiply these matricestogether such that the total number of element multiplications isminimum. When two matrices of sizem*nandn*pw",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach ] Using Recursion - O(2^n) and O(n) Space",
+        "[Better Approach 1 ] Using Top-Down DP (Memoization)- O(n*n*n) and O(n*n) Space",
+        "[Better Approach 2 ] Using Bottom-Up DP (Tabulation) - O(n*n*n) and O(n*n) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Target Sum Combinations",
+      "url": "https://www.geeksforgeeks.org/dsa/combinational-sum/",
+      "description": "Given an arrayarr[]of distinct integers and an integertarget, find all unique combinations of array where the sum of chosen element is equal to target. The same element may be chosen any number of times to make target.",
+      "examples": [],
+      "approaches": [
+        "[Approach] Using Recursion and Backtracking"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Subset Sum Problem",
+      "url": "https://www.geeksforgeeks.org/dsa/subset-sum-problem-dp-25/",
+      "description": "Given an arrayarr[]of non-negative integers and a valuesum, the task is to check if there is asubsetof the given array whose sum is equal to the givensum.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Using Recursion – O(2^n) Time and O(n) Space",
+        "[Better Approach 1] Using Top-Down DP (Memoization) -O(sum*n)Time andO(sum*n)Space",
+        "[Better Approach 2] Using Bottom-Up DP (Tabulation)-O(sum*n)Time andO(sum*n)Space",
+        "[Expected Approach] Using Space Optimized DP – O(sum*n) Time and O(sum) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "House Robber - Maximum possible stolen value",
+      "url": "https://www.geeksforgeeks.org/dsa/find-maximum-possible-stolen-value-houses/",
+      "description": "There arenhouses built in a line, each of which contains some money in it. A robber wants to steal money from these houses, but he can’t steal fromtwo adjacenthouses. The task is to find themaximumamount of money which can be stolen.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Using Recursion- O(2n) Time and O(n) Space",
+        "[Better Approach] Using Memoization - O(n) Time and O(n) Space",
+        "[Expected Approach 1] Using Tabulation - O(n) Time and O(n) Space",
+        "[Expected Approach 2]Space-Optimized DP- O(n) Time and O(1) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Count Possible Decodings of a given Digit Sequence",
+      "url": "https://www.geeksforgeeks.org/dsa/count-possible-decodings-given-digit-sequence/",
+      "description": "Let1 maps to 'A', 2 maps to 'B', ..., 26 to 'Z'.Given adigit sequence,countthe number of possibledecodingsof the given digit sequence. Consider the input string\"123\". There are three valid ways to decode it:",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Using Recursion - O(2^n) Time and O(n) Space",
+        "[Better Approach 1] Using Top-Down DP (Memoization) -O(n)Time andO(n)Space",
+        "[Better Approach 2] Using Bottom-Up DP (Tabulation) -O(n)Time andO(n)Space",
+        "[Expected Approach] Using Space Optimised DP  -O(n)Time andO(1)Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Unique paths in a Grid with Obstacles",
+      "url": "https://www.geeksforgeeks.org/dsa/unique-paths-in-a-grid-with-obstacles/",
+      "description": "Given a matrixmat[][]of sizen * m, where mat[i][j] = 1 indicates an obstacle and mat[i][j] = 0 indicates an empty space. The task is to find the number of unique paths to reach (n-1, m-1) starting from (0, 0). You are allowed to move in the right or downward direction. Note:In the grid, cells marked",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Unknown",
+      "url": "https://www.geeksforgeeks.org/problems/jump-game/1",
+      "description": "",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Unknown"
+    },
+    {
+      "title": "Rod Cutting",
+      "url": "https://www.geeksforgeeks.org/dsa/cutting-a-rod-dp-13/",
+      "description": "Given a rod of lengthn inchesand an arrayprice[].price[i] denotes the value of apieceof length i. The task is to determine themaximumvalue obtainable bycutting up the rodand selling the pieces. Note:price[] is1-indexedarray.",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Maximum Product Cutting | DP-36",
+      "url": "https://www.geeksforgeeks.org/dsa/maximum-product-cutting-dp-36/",
+      "description": "Given a rope of length n meters, cut the rope in different parts of integer lengths in a way that maximizes product of lengths of all parts. You must make at least one cut. Assume that the length of rope is more than 2 meters.",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Count number of ways to cover a distance",
+      "url": "https://www.geeksforgeeks.org/dsa/count-number-of-ways-to-cover-a-distance/",
+      "description": "Given a distance 'dist', count total number of ways to cover the distance with 1, 2 and 3 steps.",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Connect n ropes with minimum cost",
+      "url": "https://www.geeksforgeeks.org/dsa/connect-n-ropes-minimum-cost/",
+      "description": "Given an arrayarr[]of rope lengths, connect all ropes into a single rope with theminimumtotal cost. The cost to connect two ropes is thesumof their lengths.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Greedy with Repeated Sorting - O(n2*log(n)) Time and O(n) Space",
+        "[Expected Approach] Greedy with Heap - O(n*log(n)) Time and O(n) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Largest Number by One Swap",
+      "url": "https://www.geeksforgeeks.org/dsa/largest-number-with-one-swap-allowed/",
+      "description": "Given a numeric strings, find the lexicographically largest string by swapping at most one pair of characters. Note:Leading zeros are not allowed.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Tries all possible swaps - O(n^3) Time and O(1) Space",
+        "[Expected Approach] Greedy Rightmost Maximum Swap - O(n) Time and O(1) Space"
+      ],
+      "last_updated": "Last Updated :"
+    }
+  ],
+  "Bit Manipulations": [
+    {
+      "title": "Count set bits in an integer",
+      "url": "https://www.geeksforgeeks.org/dsa/count-set-bits-in-an-integer/",
+      "description": "Given a positive number n count the set bit .Examples : Input :n = 6Output :2Binary representation of 6 is 110 and has 2 set bits",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] - One by One Counting",
+        "[Expected Approach 1] - Brian Kernighan's Algorithm",
+        "[Expected Approach 2] - Using Lookup table",
+        "[Expected Approach 3] - Mapping Nibbles"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Find the Missing Number",
+      "url": "https://www.geeksforgeeks.org/dsa/find-the-missing-number/",
+      "description": "Given an arrayarr[]of sizen-1withdistinctintegers in the range of[1, n].This array represents a permutation of the integers from 1 to n with one element missing. Find the missing element in the array.",
+      "examples": [],
+      "approaches": [
+        "[Naive Approach] Linear Search for Missing Number - O(n^2) Time and O(1) Space",
+        "[Better Approach] Using Hashing - O(n) Time and O(n) Space",
+        "[Expected Approach 1] Using Sum of n terms Formula - O(n) Time and O(1) Space",
+        "[Expected Approach 2] Using XOR Operation - O(n) Time and O(1) Space"
+      ],
+      "last_updated": "Last Updated :"
+    },
+    {
+      "title": "Bits manipulation (Important tactics)",
+      "url": "https://www.geeksforgeeks.org/dsa/bits-manipulation-important-tactics/#xorsubset",
+      "description": "Prerequisites:Bitwise operators in C,Bitwise Hacks for Competitive Programming,Bit Tricks for Competitive Programming",
+      "examples": [],
+      "approaches": [],
+      "last_updated": "Last Updated :"
+    }
+  ]
+}

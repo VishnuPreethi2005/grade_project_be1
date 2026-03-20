@@ -1,0 +1,17 @@
+# Select Diagram Boxes Prompt
+# Used for matching YOLO-detected boxes to questions
+name: select_diagram_boxes
+version: "1.0"
+description: Prompt for selecting diagram bounding boxes
+
+prompt: |
+  Green boxes are numbered 1, 2, 3, etc.
+  These are the questions that need diagrams:
+  {question_context}
+
+  Analyze the image. Match the box numbers (e.g., [1, 4]) to the question key (e.g., "Q3") they belong to.
+  ONLY select boxes containing VISUAL DIAGRAMS: Flowcharts, Block diagrams, Circuit diagrams, Technical illustrations.
+  IGNORE: Tables, text content, mathematical equations as text.
+
+  Respond with a JSON object mapping question keys to a list of box numbers.
+  Example: {{"Q3": [1, 4], "Q4": [2]}}

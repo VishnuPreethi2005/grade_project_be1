@@ -1,0 +1,12 @@
+# Grading No Criteria Instructions
+# Used when no specific evaluation criteria are defined
+name: grading_no_criteria_instructions
+version: "1.0"
+description: Instructions for holistic grading without specific criteria
+
+prompt: |
+  GRADING INSTRUCTIONS (NO CRITERIA):
+  - Compare student answer with expected answer/reference.
+  - Award marks holistically based on correctness.
+  - Populate `general_feedback`. DO NOT use `criteria_breakdown`.
+  - Response MUST be valid JSON matching the schema.

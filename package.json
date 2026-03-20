@@ -1,0 +1,26 @@
+{
+  "name": "grade_be",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VishnuPreethi2005/grade_project_final.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/VishnuPreethi2005/grade_project_final/issues"
+  },
+  "homepage": "https://github.com/VishnuPreethi2005/grade_project_final#readme",
+  "description": "",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "pyright": "^1.1.408",
+    "ws": "^8.19.0"
+  }
+}
