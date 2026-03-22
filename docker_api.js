@@ -10,7 +10,7 @@ const PORT = 8002;
 
 // Execute commands and return promises
 const runCommand = (cmd) => new Promise((resolve, reject) => {
-    exec(cmd, (error, stdout, stderr) => {
+    exec(cmd, { windowsHide: true }, (error, stdout, stderr) => {
         if (error) {
             reject({ error, stdout, stderr });
         } else {
@@ -19,57 +19,99 @@ const runCommand = (cmd) => new Promise((resolve, reject) => {
     });
 });
 
+const sanitizeName = (value) =>
+    String(value).trim().replace(/[^a-zA-Z0-9_.-]/g, '_');
+
 app.post('/start-project', async (req, res) => {
     const { userId, projectId, pythonVersion, projectPath } = req.body;
 
     if (!userId || !projectId || !pythonVersion || !projectPath) {
-        return res.status(400).json({ error: 'Missing required fields: userId, projectId, pythonVersion, projectPath' });
+        return res.status(400).json({
+            error: 'Missing required fields: userId, projectId, pythonVersion, projectPath'
+        });
     }
 
-    const containerName = `${userId}_${projectId}`;
-    const image = `python:${pythonVersion}-slim`;
+    const containerName = `${sanitizeName(userId)}_${sanitizeName(projectId)}`;
+
+    // IMPORTANT: use your custom built IDE image, not plain python slim
+    const image = `ide-python-${pythonVersion}`;
 
     // 1. Check if Docker is running
     try {
         await runCommand('docker info');
     } catch (e) {
-        return res.status(500).json({ error: 'Docker is not running or not accessible. Please start Docker Desktop.' });
+        return res.status(500).json({
+            error: 'Docker is not running or not accessible. Please start Docker Desktop.'
+        });
     }
 
     // 2. Check if container already exists
     try {
         const { stdout } = await runCommand('docker ps -a --format "{{.Names}}"');
-        if (stdout.includes(containerName)) {
-            // Container exists, if it's running we return success, if stopped we start it
+        const existing = stdout.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+
+        if (existing.includes(containerName)) {
             const running = await runCommand('docker ps --format "{{.Names}}"');
-            if (running.stdout.includes(containerName)) {
-                return res.json({ status: 'success', message: 'Container already running', containerName });
+            const runningList = running.stdout.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+
+            if (runningList.includes(containerName)) {
+                return res.json({
+                    status: 'success',
+                    message: 'Container already running',
+                    containerName,
+                    image
+                });
             } else {
                 await runCommand(`docker start ${containerName}`);
-                return res.json({ status: 'success', message: 'Container restarted', containerName });
+                return res.json({
+                    status: 'success',
+                    message: 'Container restarted',
+                    containerName,
+                    image
+                });
             }
         }
     } catch (e) {
-        console.error("Error checking existing containers:", e);
+        console.error('Error checking existing containers:', e);
     }
 
-    // 3. Normalize path for Docker volume mounting and escape quotes
+    // 3. Normalize path for Docker volume mounting
     const normalizedPath = projectPath.replace(/\\/g, '/');
 
-    // 4. Run the container with strict constraints
-    // cpu 0.5, memory 512m, pids 100, detached, tail -f /dev/null keeps it alive
-    const runCmd = `docker run -itd --name ${containerName} --cpus="0.5" -m 512m --pids-limit 100 -v "${normalizedPath}:/app" -w /app ${image} tail -f /dev/null`;
+    // 4. Run the container
+    const runCmd =
+        `docker run -itd ` +
+        `--name ${containerName} ` +
+        `--cpus="0.5" -m 512m --pids-limit 100 ` +
+        `-v "${normalizedPath}:/app" ` +
+        `-w /app ` +
+        `${image} tail -f /dev/null`;
 
     try {
         await runCommand(runCmd);
-        res.json({ status: 'success', message: 'Container created and started successfully', containerName });
+        res.json({
+            status: 'success',
+            message: 'Container created and started successfully',
+            containerName,
+            image
+        });
     } catch (e) {
         const errText = (e.stderr || e.error.message || '').toLowerCase();
-        if (errText.includes('not found') || errText.includes('manifest unknown') || errText.includes('pull access denied')) {
-            // Provide a better error message if the image needs to be pulled but fails
-            return res.status(404).json({ error: `Image ${image} not found. Docker might need to pull it first, or it doesn't exist.` });
+
+        if (
+            errText.includes('not found') ||
+            errText.includes('manifest unknown') ||
+            errText.includes('pull access denied')
+        ) {
+            return res.status(404).json({
+                error: `Image ${image} not found. Build ide-python-${pythonVersion} first.`
+            });
         }
-        res.status(500).json({ error: 'Failed to start container', details: e.stderr || e.error.message });
+
+        res.status(500).json({
+            error: 'Failed to start container',
+            details: e.stderr || e.error.message
+        });
     }
 });
 
@@ -80,16 +122,23 @@ app.post('/execute-command', async (req, res) => {
         return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const containerName = `${userId}_${projectId}`;
+    const containerName = `${sanitizeName(userId)}_${sanitizeName(projectId)}`;
 
     // 1. Check if container is running
     try {
         const { stdout } = await runCommand('docker ps --format "{{.Names}}"');
-        if (!stdout.includes(containerName)) {
-            return res.status(404).json({ error: 'Container is not running. Please start the project first.' });
+        const running = stdout.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+
+        if (!running.includes(containerName)) {
+            return res.status(404).json({
+                error: 'Container is not running. Please start the project first.'
+            });
         }
     } catch (e) {
-        return res.status(500).json({ error: 'Failed to check container status', details: e.stderr });
+        return res.status(500).json({
+            error: 'Failed to check container status',
+            details: e.stderr
+        });
     }
 
     // 2. Execute command inside container
@@ -99,16 +148,15 @@ app.post('/execute-command', async (req, res) => {
         commandWithCwd = `cd "${escapedDir}" && ${command}`;
     }
 
-    // Escape double quotes inside the command to ensure bash -c gets the full string securely
     const escapedCommand = commandWithCwd.replace(/"/g, '\\"');
-    const execCmd = `docker exec ${containerName} bash -c "${escapedCommand}"`;
+
+    // use sh for better compatibility with slim images
+    const execCmd = `docker exec ${containerName} sh -c "${escapedCommand}"`;
 
     try {
         const { stdout, stderr } = await runCommand(execCmd);
         res.json({ status: 'success', stdout, stderr });
     } catch (e) {
-        // e.error.code won't necessarily be 0, meaning the command errored out
-        // We still want to return the stdout and stderr from the command execution to the user
         res.status(500).json({
             error: 'Command execution failed or returned error exit code',
             stdout: e.stdout || '',
@@ -124,18 +172,39 @@ app.post('/stop-project', async (req, res) => {
         return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const containerName = `${userId}_${projectId}`;
+    const containerName = `${sanitizeName(userId)}_${sanitizeName(projectId)}`;
 
     try {
         await runCommand(`docker stop ${containerName}`);
+    } catch (e) {
+        const errText = (e.stderr || '').toLowerCase();
+        if (!errText.includes('no such container')) {
+            return res.status(500).json({
+                error: 'Failed to stop container',
+                details: e.stderr || e.error.message
+            });
+        }
+    }
+
+    try {
         await runCommand(`docker rm ${containerName}`);
-        res.json({ status: 'success', message: 'Container stopped and removed successfully' });
+        res.json({
+            status: 'success',
+            message: 'Container stopped and removed successfully'
+        });
     } catch (e) {
         const errText = (e.stderr || '').toLowerCase();
         if (errText.includes('no such container')) {
-            return res.json({ status: 'success', message: 'Container already stopped and removed' });
+            return res.json({
+                status: 'success',
+                message: 'Container already stopped and removed'
+            });
         }
-        res.status(500).json({ error: 'Failed to stop/remove container', details: e.stderr || e.error.message });
+
+        res.status(500).json({
+            error: 'Failed to remove container',
+            details: e.stderr || e.error.message
+        });
     }
 });
 
