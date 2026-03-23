@@ -245,6 +245,14 @@
             color: #519aba;
         }
 
+        .tree-node .children {
+            display: none;
+        }
+
+        .tree-node.expanded > .children {
+            display: block;
+        }
+
         /* ── Context Menu ── */
         #contextMenu {
             position: fixed;
@@ -331,32 +339,29 @@
             opacity: 1;
         }
 
-        .run-btn-container {
+        .runtime-select {
             position: absolute;
             top: 70px;
             right: 20px;
             z-index: 50;
-        }
-
-        .run-btn {
-            background: linear-gradient(135deg, #28a745, #20c997);
-            color: white;
-            border: none;
-            padding: 6px 18px;
-            border-radius: 20px;
-            font-weight: 700;
-            cursor: pointer;
-            font-size: 13px;
             display: flex;
             align-items: center;
             gap: 6px;
-            box-shadow: 0 2px 8px rgba(40, 167, 69, .4);
-            transition: all .2s;
+            font-size: 12px;
+            color: #bbb;
         }
 
-        .run-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(40, 167, 69, .5);
+        .runtime-select select {
+            background: #2d2d2d;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 4px 6px;
+            border-radius: 3px;
+        }
+
+        .runtime-select select:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
         }
 
         #editor-container {
@@ -549,12 +554,21 @@
             display: none !important;
         }
 
-        .expanded .children {
-            display: block;
+        .file-preview {
+            flex: 1;
+            overflow: auto;
+            padding: 16px;
+            background: #1e1e1e;
+            color: #d4d4d4;
         }
 
-        .collapsed .children {
-            display: none;
+        .file-preview img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+            border: 1px solid #333;
+            border-radius: 6px;
         }
 
         /* ── Status Bar ── */
@@ -701,20 +715,16 @@
         <!-- Editor Area -->
         <div class="editor-pane" style="position:relative;">
             <div class="tabs" id="tabs"></div>
-            <div class="run-btn-container" style="display:flex; gap:8px; align-items:center;">
-                <select id="pythonVersion"
-                    style="background:#2d2d2d; color:#fff; border:1px solid #444; padding:5px; border-radius:3px;">
-                    <option value="3.12">Python 3.12 (Docker)</option>
-                    <option value="3.11">Python 3.11 (Docker)</option>
-                    <option value="3.10">Python 3.10 (Docker)</option>
+            <div class="runtime-select">
+                <label for="pythonVersionSelect">Python</label>
+                <select id="pythonVersionSelect">
+                    <option value="3.10">3.10</option>
+                    <option value="3.11">3.11</option>
+                    <option value="3.12">3.12</option>
                 </select>
-                <button class="run-btn" id="btnStartDocker" onclick="startDockerContainer()"
-                    style="background:#4ec9b0; margin-left:0;">🐳 START ENV</button>
-                <button class="run-btn" id="btnStopDocker" onclick="stopDockerContainer()"
-                    style="background:#f88; margin-left:0; display:none;">⏹ STOP ENV</button>
-                <button class="run-btn" id="runBtn" onclick="runFile()" style="margin-left:0;">▶ RUN NATIVE</button>
             </div>
             <div id="editor-container"></div>
+            <div id="filePreview" class="file-preview hidden"></div>
 
             <div class="terminal">
                 <div class="terminal-header">
@@ -729,7 +739,6 @@
         <!-- Status Bar -->
         <div class="status-bar"
             style="position:fixed;bottom:0;width:100%;z-index:1000;height:22px;background:#007acc;color:white;display:flex;align-items:center;padding:0 10px;font-size:11px;gap:16px;">
-            <div class="status-item" id="dockerStatusUI">🐳 Docker: Ready</div>
             <div class="status-item" id="lspStatus">🔵 LSP: Connecting... <span class="lsp-badge connecting"
                     id="lspBadge">●</span></div>
             <div class="status-item" id="pathStatus">📍 No folder opened</div>
@@ -773,6 +782,23 @@
         let lastSentAt = 0;
         const promptRe = /^PS .*?>\s*$/;
         let WORKSPACE_BOOTSTRAP = false;
+        const TREE_REFRESH_INTERVAL_MS = 5000;
+        let TREE_REFRESH_IN_FLIGHT = false;
+        const FILE_ICONS = {
+            folderClosed: '📁',
+            folderOpen: '📂',
+            python: '🐍',
+            csv: '📊',
+            notebook: '📓',
+            pkl: '🧪',
+            pt: '🤖',
+            markdown: '📝',
+            text: '📄',
+            image: '🖼️',
+            requirements: '📦',
+            unknown: '❔'
+        };
+        const PENDING_OPEN_QUEUE = [];
         // Non-TTY backend: always use line-mode with local buffer.
         const terminalLineMode = true;
         const DEBUG_TERMINAL_INPUT = false;
@@ -782,6 +808,9 @@
         let promptSpaceInserted = false;
         let outputTail = '';
         const promptRegex = /\/workspace\$\s*$/;
+        let PYTHON_VERSION_LOCKED = false;
+        let SELECTED_PYTHON_VERSION = '';
+        const USER_ID = 'user1';
 
         function filterBackendOutput(text) {
             // Remove control characters like backspace; normalize newlines to \n.
@@ -1321,11 +1350,16 @@
                 return;
             }
             termSocket.send(JSON.stringify({ type: 'line', data: line }));
+            setTimeout(() => {
+                if (CURRENT_WORKSPACE_PATH) refreshTree();
+            }, 1500);
         }
 
         function getEditorCodeContext() {
             if (monacoEditor) return monacoEditor.getValue();
             if (ACTIVE_FILE && TAB_STATE[ACTIVE_FILE] && TAB_STATE[ACTIVE_FILE].model) {
+                const state = TAB_STATE[ACTIVE_FILE];
+                if (state.meta && state.meta.editable === false) return '';
                 return TAB_STATE[ACTIVE_FILE].model.getValue();
             }
             return '';
@@ -1581,6 +1615,7 @@
                 }
             }, 300));
 
+            flushPendingOpens();
             console.log('Monaco Editor initialized.');
         });
 
@@ -1757,11 +1792,111 @@
             };
         }
 
+        function getFileExtension(name) {
+            if (!name) return '';
+            const lower = name.toLowerCase();
+            if (lower === 'requirements.txt') return 'requirements';
+            const parts = lower.split('.');
+            return parts.length > 1 ? parts.pop() : '';
+        }
+
+        function getFileIcon(name, type, isExpanded) {
+            if (type === 'folder') return isExpanded ? FILE_ICONS.folderOpen : FILE_ICONS.folderClosed;
+            const ext = getFileExtension(name);
+            if (ext === 'requirements') return FILE_ICONS.requirements;
+            if (ext === 'py') return FILE_ICONS.python;
+            if (ext === 'csv') return FILE_ICONS.csv;
+            if (ext === 'ipynb') return FILE_ICONS.notebook;
+            if (ext === 'pkl') return FILE_ICONS.pkl;
+            if (ext === 'pt') return FILE_ICONS.pt;
+            if (ext === 'md') return FILE_ICONS.markdown;
+            if (ext === 'txt') return FILE_ICONS.text;
+            if (ext === 'json') return FILE_ICONS.text;
+            if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'].includes(ext)) return FILE_ICONS.image;
+            return FILE_ICONS.unknown;
+        }
+
+        function formatBytes(bytes) {
+            if (!bytes || bytes < 0) return '0 B';
+            const units = ['B', 'KB', 'MB', 'GB'];
+            let size = bytes;
+            let unit = 0;
+            while (size >= 1024 && unit < units.length - 1) {
+                size /= 1024;
+                unit++;
+            }
+            return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+        }
+
+        function queueOpenPath(path) {
+            if (!path) return;
+            if (!PENDING_OPEN_QUEUE.includes(path)) {
+                PENDING_OPEN_QUEUE.push(path);
+            }
+        }
+
+        function flushPendingOpens() {
+            if (!monacoEditor || PENDING_OPEN_QUEUE.length === 0) return;
+            const pending = PENDING_OPEN_QUEUE.slice();
+            PENDING_OPEN_QUEUE.length = 0;
+            pending.forEach((path) => openFile(path));
+        }
+
+        function showFilePreview(preview) {
+            const previewEl = document.getElementById('filePreview');
+            const editorEl = document.getElementById('editor-container');
+            if (!previewEl || !editorEl) return;
+            previewEl.innerHTML = '';
+            if (preview && preview.type === 'image' && preview.url) {
+                const img = document.createElement('img');
+                img.src = preview.url;
+                img.alt = preview.name || 'Image preview';
+                previewEl.appendChild(img);
+                if (preview.caption) {
+                    const cap = document.createElement('div');
+                    cap.style.marginTop = '10px';
+                    cap.style.color = '#9cdcfe';
+                    cap.innerText = preview.caption;
+                    previewEl.appendChild(cap);
+                }
+            } else if (preview && preview.message) {
+                const msg = document.createElement('div');
+                msg.style.whiteSpace = 'pre-wrap';
+                msg.innerText = preview.message;
+                previewEl.appendChild(msg);
+            }
+            previewEl.classList.remove('hidden');
+            editorEl.classList.add('hidden');
+        }
+
+        function hideFilePreview() {
+            const previewEl = document.getElementById('filePreview');
+            const editorEl = document.getElementById('editor-container');
+            if (!previewEl || !editorEl) return;
+            previewEl.classList.add('hidden');
+            editorEl.classList.remove('hidden');
+            if (monacoEditor) monacoEditor.layout();
+        }
+
         function getLanguageByExtension(path) {
-            if (!path) return 'python';
-            const ext = path.split('.').pop().toLowerCase();
-            const map = { py: 'python', js: 'javascript', html: 'html', css: 'css', json: 'json', md: 'markdown', ts: 'typescript', txt: 'plaintext', sh: 'shell', yml: 'yaml', yaml: 'yaml' };
-            return map[ext] || 'python';
+            if (!path) return 'plaintext';
+            const ext = getFileExtension(path);
+            const map = {
+                py: 'python',
+                md: 'markdown',
+                json: 'json',
+                ipynb: 'json',
+                txt: 'plaintext',
+                csv: 'plaintext',
+                yml: 'yaml',
+                yaml: 'yaml',
+                js: 'javascript',
+                ts: 'typescript',
+                html: 'html',
+                css: 'css',
+                sh: 'shell'
+            };
+            return map[ext] || 'plaintext';
         }
 
         function debounce(fn, delay) {
@@ -1788,8 +1923,14 @@
         window.onload = async () => {
             initTerminal();
             connectLSP('');
+            initPythonSelector();
             await refreshTree();
             renderTabs();
+            setInterval(() => {
+                if (CURRENT_WORKSPACE_PATH && !WORKSPACE_BOOTSTRAP) {
+                    refreshTree();
+                }
+            }, TREE_REFRESH_INTERVAL_MS);
         };
 
         async function pickFolder() {
@@ -1835,17 +1976,99 @@
             document.getElementById('pathStatus').innerText = `📍 ${root.split(/[\\/]/).pop()}`;
         }
 
+        function getProjectId() {
+            if (!CURRENT_WORKSPACE_PATH) return 'workspace';
+            const name = CURRENT_WORKSPACE_PATH.split(/[\\/]/).pop() || 'workspace';
+            const cleaned = name.replace(/\W/g, '');
+            return cleaned || 'workspace';
+        }
+
+        function setPythonSelectorState(version, locked) {
+            const select = document.getElementById('pythonVersionSelect');
+            if (!select) return;
+            if (version) {
+                select.value = version;
+                SELECTED_PYTHON_VERSION = version;
+            } else if (!locked) {
+                select.selectedIndex = -1;
+                SELECTED_PYTHON_VERSION = '';
+            }
+            PYTHON_VERSION_LOCKED = !!locked;
+            select.disabled = !!locked;
+        }
+
+        function applyRuntimeState(runtime) {
+            if (!runtime) {
+                setPythonSelectorState('', false);
+                return;
+            }
+            const version = runtime.python_version || '';
+            const locked = !!runtime.locked;
+            setPythonSelectorState(version, locked);
+        }
+
+        async function selectPythonVersion(version) {
+            if (PYTHON_VERSION_LOCKED) {
+                showToast('⚠️ Python version is already locked.');
+                return;
+            }
+            if (!CURRENT_WORKSPACE_PATH) {
+                const ok = await ensureWorkspace();
+                if (!ok) return;
+            }
+            try {
+                const res = await fetch('/select_python_version', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: USER_ID,
+                        project_id: getProjectId(),
+                        python_version: version
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.detail || 'Failed to set Python version.');
+                }
+                setPythonSelectorState(data.python_version, true);
+                showToast(`✅ Python ${data.python_version} selected.`);
+            } catch (e) {
+                showToast('❌ ' + e.message);
+                setPythonSelectorState(SELECTED_PYTHON_VERSION, PYTHON_VERSION_LOCKED);
+            }
+        }
+
+        function initPythonSelector() {
+            const select = document.getElementById('pythonVersionSelect');
+            if (!select) return;
+            select.addEventListener('change', (e) => {
+                const version = e.target.value;
+                if (!version) return;
+                selectPythonVersion(version);
+            });
+            if (!PYTHON_VERSION_LOCKED && !SELECTED_PYTHON_VERSION) {
+                select.selectedIndex = -1;
+            }
+        }
+
         async function refreshTree() {
-            const res = await fetch('/list_files');
-            const data = await res.json();
-            if (data.status === 'success' && data.current_dir) {
-                CURRENT_WORKSPACE_PATH = data.current_dir;
-                hideWelcome();
-                renderTree(data.files, data.current_dir);
-                document.getElementById('pathStatus').innerText = `📍 ${data.current_dir.split(/[\\/]/).pop()}`;
-                syncTerminalCwd();
-            } else {
-                await ensureWorkspace();
+            if (TREE_REFRESH_IN_FLIGHT) return;
+            TREE_REFRESH_IN_FLIGHT = true;
+            try {
+                const res = await fetch('/list_files');
+                const data = await res.json();
+                if (data.status === 'success' && data.current_dir) {
+                    CURRENT_WORKSPACE_PATH = data.current_dir;
+                    hideWelcome();
+                    renderTree(data.files, data.current_dir);
+                    document.getElementById('pathStatus').innerText = `📍 ${data.current_dir.split(/[\\/]/).pop()}`;
+                    applyRuntimeState(data.runtime);
+                    syncTerminalCwd();
+                } else {
+                    await ensureWorkspace();
+                }
+            } finally {
+                TREE_REFRESH_IN_FLIGHT = false;
             }
         }
 
@@ -1886,6 +2109,9 @@
                 items.forEach(item => {
                     const div = document.createElement('div');
                     div.className = 'tree-node';
+                    if (item.type === 'folder' && SELECTED_PATH && (SELECTED_PATH === item.path || SELECTED_PATH.startsWith(item.path + '/'))) {
+                        div.classList.add('expanded');
+                    }
 
                     const content = document.createElement('div');
                     content.className = 'tree-content';
@@ -1902,18 +2128,19 @@
 
                     const icon = document.createElement('span');
                     if (item.type === 'folder') {
-                        icon.innerText = '📁';
+                        icon.innerText = getFileIcon(item.name, 'folder', div.classList.contains('expanded'));
                         icon.className = 'folder-icon';
                         content.onclick = (e) => {
                             SELECTED_PATH = item.path;
                             SELECTED_TYPE = 'folder';
-                            div.classList.toggle('expanded');
+                            const isExpanded = div.classList.toggle('expanded');
+                            icon.innerText = getFileIcon(item.name, 'folder', isExpanded);
                             document.querySelectorAll('.tree-content').forEach(n => n.classList.remove('active'));
                             content.classList.add('active');
                             e.stopPropagation();
                         };
                     } else {
-                        icon.innerText = '📄';
+                        icon.innerText = getFileIcon(item.name, 'file', false);
                         icon.className = 'file-icon';
                         content.onclick = (e) => {
                             SELECTED_PATH = item.path;
@@ -1986,11 +2213,22 @@
             const state = TAB_STATE[path];
             if (!state || !monacoEditor) return;
             ACTIVE_FILE = path;
-            monacoEditor.setModel(state.model);
-            const lang = getLanguageByExtension(path);
-            monaco.editor.setModelLanguage(state.model, lang);
+            if (state.model) {
+                monacoEditor.setModel(state.model);
+                const lang = getLanguageByExtension(path);
+                monaco.editor.setModelLanguage(state.model, lang);
+            } else if (EMPTY_MODEL) {
+                monacoEditor.setModel(EMPTY_MODEL);
+            }
+            const editable = !(state.meta && state.meta.editable === false);
+            monacoEditor.updateOptions({ readOnly: !editable });
+            if (state.preview) {
+                showFilePreview(state.preview);
+            } else {
+                hideFilePreview();
+            }
             renderTabs();
-            if (lspReady) openDocInLSP();
+            if (lspReady && editable) openDocInLSP();
         }
 
         function closeTab(path) {
@@ -2011,7 +2249,9 @@
                             EMPTY_MODEL = monaco.editor.createModel('', 'plaintext');
                         }
                         monacoEditor.setModel(EMPTY_MODEL);
+                        monacoEditor.updateOptions({ readOnly: false });
                     }
+                    hideFilePreview();
                     renderTabs();
                 }
             } else {
@@ -2024,17 +2264,46 @@
                 const ok = await ensureWorkspace();
                 if (!ok) return;
             }
-            if (TAB_STATE[path]) {
-                setActiveTab(path);
+            if (!monacoEditor) {
+                queueOpenPath(path);
                 return;
+            }
+            if (TAB_STATE[path]) {
+                if (TAB_STATE[path].isDirty) {
+                    setActiveTab(path);
+                    return;
+                }
+                closeTab(path);
             }
             const res = await fetch('/view_file?file_name=' + encodeURIComponent(path));
             const data = await res.json();
+            if (!res.ok) {
+                showToast('❌ Failed to open file.');
+                return;
+            }
             if (res.ok && monacoEditor) {
-                const content = data.code_content || '';
+                const meta = data.file || {};
+                const editable = !(meta.editable === false);
+                const content = editable ? (data.code_content || '') : '';
                 const lang = getLanguageByExtension(path);
                 const model = monaco.editor.createModel(content, lang);
-                TAB_STATE[path] = { model, isDirty: false, saveTimer: null };
+                let preview = null;
+                if (meta.preview === 'image') {
+                    preview = {
+                        type: 'image',
+                        url: '/file_preview?file_name=' + encodeURIComponent(path),
+                        name: meta.name || path,
+                        caption: meta.size ? `Size: ${formatBytes(meta.size)}` : ''
+                    };
+                } else if (meta.preview === 'binary') {
+                    preview = { type: 'message', message: data.message || 'Binary file cannot be edited.' };
+                } else if (meta.preview === 'large') {
+                    const sizeText = meta.size ? formatBytes(meta.size) : '';
+                    preview = { type: 'message', message: data.message || `File is too large to open. ${sizeText}` };
+                } else if (!editable) {
+                    preview = { type: 'message', message: data.message || 'File is not editable.' };
+                }
+                TAB_STATE[path] = { model, isDirty: false, saveTimer: null, meta, preview };
                 OPEN_TABS.push(path);
                 setActiveTab(path);
             }
@@ -2067,12 +2336,25 @@
         async function saveFile(path = ACTIVE_FILE, options = {}) {
             if (!path) return showToast('⚠️ No file open to save.');
             const state = TAB_STATE[path];
+            if (state && state.meta && state.meta.editable === false) {
+                if (!options.silent) showToast('⚠️ This file type is read-only.');
+                return;
+            }
             const content = state && state.model ? state.model.getValue() : (monacoEditor ? monacoEditor.getValue() : '');
-            await fetch('/save_file', {
+            const res = await fetch('/save_file', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ file_name: path, code_content: content })
             });
+            if (!res.ok) {
+                let errText = 'Save failed.';
+                try {
+                    const err = await res.json();
+                    errText = err.detail || errText;
+                } catch (e) { }
+                if (!options.silent) showToast('❌ ' + errText);
+                return;
+            }
             if (state) {
                 if (state.saveTimer) clearTimeout(state.saveTimer);
                 state.saveTimer = null;
@@ -2125,101 +2407,6 @@
             toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 2500);
         }
 
-        let DOCKER_CONTAINER = null;
-        const DOCKER_API = "http://127.0.0.1:8002";
-
-        async function startDockerContainer() {
-            if (!CURRENT_WORKSPACE_PATH) return showToast('⚠️ Open a workspace first!');
-            const version = document.getElementById('pythonVersion').value;
-            const userId = "dev";
-            const projectId = CURRENT_WORKSPACE_PATH.split(/[/\\]/).pop().replace(/\W/g, '') || "default";
-
-            const btn = document.getElementById('btnStartDocker');
-            btn.innerText = "⏳ STARTING...";
-            btn.disabled = true;
-
-            try {
-                const res = await fetch(`${DOCKER_API}/start-project`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId, projectId, pythonVersion: version, projectPath: CURRENT_WORKSPACE_PATH })
-                });
-                const data = await res.json();
-                if (data.status === 'success') {
-                    DOCKER_CONTAINER = { userId, projectId };
-                    btn.style.display = 'none';
-                    document.getElementById('btnStopDocker').style.display = 'block';
-                    document.getElementById('dockerStatusUI').innerHTML = `🐳 Docker: ${version} <span class="lsp-badge connected">Live</span>`;
-                    document.getElementById('runBtn').innerText = '▶ RUN IN DOCKER';
-                    document.getElementById('runBtn').style.background = '#eec536';
-                    document.getElementById('runBtn').style.color = '#000';
-                    showToast('✅ Docker Isolated Environment Started!');
-                    window.addEventListener('beforeunload', stopDockerContainer);
-                } else {
-                    showToast('❌ Docker Start Failed: ' + (data.error || 'Unknown Error'));
-                }
-            } catch (e) {
-                showToast('❌ Docker API unreachable. Is node docker_api.js running?');
-            }
-            btn.innerText = "🐳 START ENV";
-            btn.disabled = false;
-        }
-
-        async function stopDockerContainer() {
-            if (!DOCKER_CONTAINER) return;
-            const btn = document.getElementById('btnStopDocker');
-            btn.innerText = "⏳ STOPPING...";
-            btn.disabled = true;
-            try {
-                await fetch(`${DOCKER_API}/stop-project`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    keepalive: true,
-                    body: JSON.stringify(DOCKER_CONTAINER)
-                });
-            } catch (e) { }
-            DOCKER_CONTAINER = null;
-            document.getElementById('btnStartDocker').style.display = 'block';
-            btn.style.display = 'none';
-            btn.innerText = "⏹ STOP ENV";
-            btn.disabled = false;
-            document.getElementById('dockerStatusUI').innerText = "🐳 Docker: Ready";
-            document.getElementById('runBtn').innerText = '▶ RUN NATIVE';
-            document.getElementById('runBtn').style.background = '#007acc';
-            document.getElementById('runBtn').style.color = '#fff';
-            showToast('🛑 Docker Environment Destroyed.');
-        }
-        async function runFile() {
-            if (!ACTIVE_FILE) return alert('Select a file first.');
-            const runBtn = document.getElementById('runBtn');
-            const ogText = runBtn.innerText;
-            runBtn.disabled = true;
-            runBtn.innerText = 'Running...';
-            await saveFile();
-
-            const command = `python ${ACTIVE_FILE.replace(/\\/g, '/')}`;
-
-            if (DOCKER_CONTAINER) {
-                try {
-                    const res = await fetch(`${DOCKER_API}/execute-command`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ...DOCKER_CONTAINER, command: command })
-                    });
-                    const data = await res.json();
-                    if (data.stdout) terminalWriteln(data.stdout);
-                    if (data.stderr || data.error) {
-                        terminalWriteln(`[DOCKER ERROR] ${data.stderr || data.error}`);
-                    }
-                } catch (e) { terminalWriteln(`[DOCKER RUN ERROR: ${e}]`); }
-            } else {
-                sendTerminalLine(command);
-            }
-
-            runBtn.disabled = false;
-            runBtn.innerText = ogText;
-        }
-
         async function promptCreate(type) {
             if (!CURRENT_WORKSPACE_PATH) {
                 const ok = await ensureWorkspace();
@@ -2234,7 +2421,18 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: prefix + name, type })
-            }).then(r => r.ok ? refreshTree() : r.json().then(e => alert(e.detail)));
+            }).then(async (r) => {
+                if (!r.ok) {
+                    const err = await r.json();
+                    alert(err.detail || 'Create failed');
+                    return;
+                }
+                await refreshTree();
+                if (type === 'file') {
+                    const newPath = prefix + name;
+                    openFile(newPath);
+                }
+            });
         }
 
         function replacePrefix(path, from, to) {
@@ -2254,6 +2452,15 @@
                 }
             }
             return null;
+        }
+
+        function updateTabStatePath(state, path) {
+            if (!state) return;
+            if (state.meta) state.meta.path = path;
+            if (state.preview && state.preview.type === 'image') {
+                state.preview.url = '/file_preview?file_name=' + encodeURIComponent(path);
+                state.preview.name = path.split('/').pop();
+            }
         }
 
         function updateTabsAfterRename(oldPath, newPath, isFolder) {
@@ -2285,6 +2492,7 @@
                 OPEN_TABS = OPEN_TABS.map((path) => (path === oldPath ? newPath : path));
                 if (ACTIVE_FILE === oldPath) ACTIVE_FILE = newPath;
             }
+            Object.keys(TAB_STATE).forEach((path) => updateTabStatePath(TAB_STATE[path], path));
             renderTabs();
         }
 
@@ -2304,61 +2512,16 @@
             const newPath = parent ? `${parent}/${newName}` : newName;
 
             try {
-                if (node.type === 'folder') {
-                    await fetch('/create_item', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name: newPath, type: 'folder' })
-                    });
-
-                    const oldRoot = node.path;
-                    const newRoot = newPath;
-                    const copyFolder = async (folderNode) => {
-                        if (!folderNode.children) return;
-                        for (const child of folderNode.children) {
-                            const targetPath = replacePrefix(child.path, oldRoot, newRoot);
-                            if (child.type === 'folder') {
-                                await fetch('/create_item', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ name: targetPath, type: 'folder' })
-                                });
-                                await copyFolder(child);
-                            } else {
-                                const res = await fetch('/view_file?file_name=' + encodeURIComponent(child.path));
-                                const data = await res.json();
-                                await fetch('/save_file', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ file_name: targetPath, code_content: data.code_content || '' })
-                                });
-                            }
-                        }
-                    };
-
-                    await copyFolder(node);
-                    await fetch('/delete_item', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ path: SELECTED_PATH })
-                    });
-                    updateTabsAfterRename(SELECTED_PATH, newPath, true);
-                } else {
-                    const res = await fetch('/view_file?file_name=' + encodeURIComponent(SELECTED_PATH));
-                    const data = await res.json();
-                    await fetch('/save_file', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ file_name: newPath, code_content: data.code_content || '' })
-                    });
-                    await fetch('/delete_item', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ path: SELECTED_PATH })
-                    });
-                    updateTabsAfterRename(SELECTED_PATH, newPath, false);
+                const res = await fetch('/rename_item', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ old_path: SELECTED_PATH, new_path: newPath })
+                });
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Rename failed');
                 }
-
+                updateTabsAfterRename(SELECTED_PATH, newPath, node.type === 'folder');
                 SELECTED_PATH = newPath;
                 SELECTED_TYPE = node.type;
                 refreshTree();
@@ -2395,6 +2558,7 @@
             }
             document.getElementById('welcomeOverlay').classList.remove('hidden');
             CURRENT_WORKSPACE_PATH = ''; ACTIVE_FILE = ''; SELECTED_PATH = ''; SELECTED_TYPE = '';
+            setPythonSelectorState('', false);
             if (OPEN_TABS.length) {
                 OPEN_TABS.slice().forEach(closeTab);
             }
@@ -2419,3 +2583,6 @@
 </body>
 
 </html>
+
+
+

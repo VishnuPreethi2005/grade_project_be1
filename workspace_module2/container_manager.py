@@ -220,6 +220,67 @@ def start_or_reuse_container(
     }
 
 
+def start_or_reuse_container_for_path(
+    workspace_path: str,
+    user_id: str,
+    project_id: str,
+    python_version: Optional[str] = None,
+) -> Dict[str, Any]:
+    if not workspace_path:
+        raise RuntimeError("workspace_path is required")
+    if not user_id or not project_id:
+        raise RuntimeError("user_id and project_id are required")
+
+    _docker_ready()
+
+    host_path = os.path.abspath(workspace_path)
+    os.makedirs(host_path, exist_ok=True)
+    image_to_use = _image_for_version(python_version)
+    container_name = _container_name_with_version(user_id, project_id, python_version)
+
+    if _container_exists(container_name):
+        status = _container_status(container_name)
+        if status != "running":
+            _run_command(["docker", "start", container_name])
+        container_id = _container_id(container_name)
+        return {
+            "status": "success",
+            "container_id": container_id,
+            "container_name": container_name,
+            "workspace_path": host_path,
+            "mount_path": WORKSPACE_MOUNT_PATH,
+            "python_version": python_version or "3.12",
+            "image": image_to_use,
+            "reused": True,
+        }
+
+    command = [
+        "docker",
+        "run",
+        "-d",
+        "--name",
+        container_name,
+        "-v",
+        f"{host_path}:{WORKSPACE_MOUNT_PATH}",
+        "-w",
+        WORKSPACE_MOUNT_PATH,
+        image_to_use,
+        "sleep",
+        "infinity",
+    ]
+    container_id = _run_command(command)
+    return {
+        "status": "success",
+        "container_id": container_id,
+        "container_name": container_name,
+        "workspace_path": host_path,
+        "mount_path": WORKSPACE_MOUNT_PATH,
+        "python_version": python_version or "3.12",
+        "image": image_to_use,
+        "reused": False,
+    }
+
+
 def stop_container(
     user_id: Optional[str] = None,
     project_id: Optional[str] = None,
