@@ -38,6 +38,66 @@ DEFAULT_WORKSPACE_NAME: str = "Workspace"
 CONTAINER_PROMPT: str = "/workspace$"
 os.makedirs(WORKSPACE_ROOT, exist_ok=True)
 
+CONTAINER_PTY_BRIDGE_SCRIPT = r"""
+import os
+import pty
+import select
+import signal
+import sys
+import tempfile
+
+shell = os.environ.get("MINI_IDE_SHELL", "/bin/sh")
+workdir = os.environ.get("MINI_IDE_WORKDIR", "/workspace")
+term = os.environ.get("TERM", "xterm-256color")
+
+try:
+    os.chdir(workdir)
+except Exception:
+    pass
+
+pid, master_fd = pty.fork()
+if pid == 0:
+    os.environ["TERM"] = term
+    if os.path.basename(shell) == "bash":
+        fd, inputrc_path = tempfile.mkstemp(prefix="miniide_inputrc_")
+        with os.fdopen(fd, "w", encoding="utf-8") as inputrc:
+            inputrc.write("set enable-bracketed-paste off\n")
+        os.environ["INPUTRC"] = inputrc_path
+    os.execv(shell, [shell, "-i"])
+
+stdin_fd = sys.stdin.fileno()
+stdout = sys.stdout.buffer
+
+while True:
+    try:
+        readable, _, _ = select.select([master_fd, stdin_fd], [], [])
+    except OSError:
+        break
+
+    if master_fd in readable:
+        try:
+            data = os.read(master_fd, 4096)
+        except OSError:
+            break
+        if not data:
+            break
+        stdout.write(data)
+        stdout.flush()
+
+    if stdin_fd in readable:
+        try:
+            data = os.read(stdin_fd, 4096)
+        except OSError:
+            break
+        if not data:
+            try:
+                os.kill(pid, signal.SIGHUP)
+            except OSError:
+                pass
+            break
+        os.write(master_fd, data)
+"""
+
 # Local dictionary to track if container is being started
 IS_CONTAINER_READY: Dict[str, bool] = {}
 
@@ -174,70 +234,30 @@ class TerminalSession:
         self.proc: Optional[subprocess.Popen] = None
         self._closed = False
         self._loop = asyncio.get_running_loop()
-        self._is_windows = platform.system().lower().startswith("win")
-        self._use_pty = not self._is_windows
-        self._tty_enabled = not self._is_windows
-        self._master_fd: Optional[int] = None
         self._reader_thread: Optional[threading.Thread] = None
-        self._pending_echoes = deque()
-        self._output_buffer = ""
-        self._at_prompt = False
-        self._prompt_re = re.compile(rf"^{re.escape(CONTAINER_PROMPT)}\\s*$")
         self._shell_path = self._resolve_shell()
         self._chat_session: Optional[ChatbotSession] = None
         self._chat_buffer = ""
+        self._cols = 80
+        self._rows = 24
 
         env = os.environ.copy()
         env.setdefault("PYTHONUNBUFFERED", "1")
 
-        if self._use_pty:
-            import pty  # Posix only
-            self._master_fd, slave_fd = pty.openpty()
-            docker_cmd = self._get_docker_exec_cmd(use_tty=True)
-            # Host shell spawning is disabled for isolation.
-            # shell_cmd = self._get_shell_cmd()
-            self.proc = subprocess.Popen(
-                docker_cmd,
-                stdin=slave_fd,
-                stdout=slave_fd,
-                stderr=slave_fd,
-                preexec_fn=os.setsid,
-                bufsize=0,
-                env=env,
-            )
-            os.close(slave_fd)
-            self._reader_thread = threading.Thread(target=self._pump_pty_output, daemon=True)
-            self._reader_thread.start()
-        else:
-            creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
-            docker_cmd = self._get_docker_exec_cmd(use_tty=False)
-            # Host shell spawning is disabled for isolation.
-            # shell_cmd = self._get_shell_cmd()
-            self.proc = subprocess.Popen(
-                docker_cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                bufsize=0,
-                creationflags=creationflags,
-                env=env,
-            )
-            self._reader_thread = threading.Thread(target=self._pump_pipe_output, daemon=True)
-            self._reader_thread.start()
-
-    def _get_shell_cmd(self) -> List[str]:
-        # Host shell spawning disabled for container isolation.
-        # if os.name == "nt":
-        #     return ["powershell.exe", "-NoLogo"]
-        # shell = os.environ.get("SHELL", "/bin/bash")
-        # if shell.endswith("bash") or shell.endswith("zsh"):
-        #     return [shell, "-i"]
-        # return [shell]
-        return []
+        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+        self.proc = subprocess.Popen(
+            self._get_docker_exec_cmd(),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=0,
+            creationflags=creationflags,
+            env=env,
+        )
+        self._reader_thread = threading.Thread(target=self._pump_output, daemon=True)
+        self._reader_thread.start()
 
     def _resolve_shell(self) -> str:
-        if self._is_windows:
-            return "/bin/sh"
         env_shell = os.environ.get("TERMINAL_SHELL")
         if env_shell:
             return env_shell
@@ -260,25 +280,27 @@ class TerminalSession:
                     return shell_path
         except Exception:
             pass
-        return "/bin/sh"
+        return DEFAULT_CONTAINER_SHELL
 
-    def _get_docker_exec_cmd(self, use_tty: bool) -> List[str]:
-        cmd = ["docker", "exec"]
-        if use_tty:
-            cmd.append("-t")
-        cmd.extend(
-            [
-                "-i",
-                "-e",
-                f"PS1={CONTAINER_PROMPT}",
-                "-w",
-                CONTAINER_WORKDIR,
-                self.container_name,
-                self._shell_path,
-                "-i",
-            ]
-        )
-        return cmd
+    def _get_docker_exec_cmd(self) -> List[str]:
+        return [
+            "docker",
+            "exec",
+            "-i",
+            "-e",
+            f"MINI_IDE_SHELL={self._shell_path}",
+            "-e",
+            f"MINI_IDE_WORKDIR={CONTAINER_WORKDIR}",
+            "-e",
+            "TERM=xterm-256color",
+            "-w",
+            CONTAINER_WORKDIR,
+            self.container_name,
+            "python",
+            "-u",
+            "-c",
+            CONTAINER_PTY_BRIDGE_SCRIPT,
+        ]
 
     async def send(self, text: str) -> None:
         if self._closed:
@@ -296,68 +318,15 @@ class TerminalSession:
         except Exception:
             self._closed = True
 
-    def _normalize_output(self, text: str) -> str:
-        # Normalize line endings and strip control characters for non-TTY output.
-        normalized = text.replace("\r\n", "\n").replace("\r", "")
-        out_chars = []
-        for ch in normalized:
-            code = ord(ch)
-            if ch in ("\n", "\t"):
-                out_chars.append(ch)
-                continue
-            if code < 32 or (127 <= code < 160):
-                continue
-            out_chars.append(ch)
-        return "".join(out_chars)
-
-    def _pump_pty_output(self) -> None:
-        if self._master_fd is None:
-            return
-        try:
-            while True:
-                rlist, _, _ = select.select([self._master_fd], [], [], 0.1)
-                if not rlist:
-                    if self.proc and self.proc.poll() is not None:
-                        break
-                    continue
-                data = os.read(self._master_fd, 1024)
-                if not data:
-                    break
-                self._send_threadsafe(data.decode("utf-8", errors="replace"))
-        finally:
-            self._send_threadsafe("\r\n[Terminal closed]\r\n")
-
-    def _pump_pipe_output(self) -> None:
+    def _pump_output(self) -> None:
         if not self.proc or not self.proc.stdout:
             return
         try:
             while True:
-                data = self.proc.stdout.read(1024)
+                data = self.proc.stdout.read(4096)
                 if not data:
                     break
-                text = self._normalize_output(data.decode("utf-8", errors="replace"))
-                self._output_buffer += text
-                lines = self._output_buffer.splitlines(keepends=True)
-                remainder = ""
-                if lines and not (lines[-1].endswith("\n") or lines[-1].endswith("\r")):
-                    remainder = lines.pop()
-                self._output_buffer = ""
-                for part in lines:
-                    stripped = part.rstrip("\r\n")
-                    if stripped and self._pending_echoes:
-                        pending = self._pending_echoes[0]
-                        if stripped == pending or (
-                            stripped.endswith(pending) and CONTAINER_PROMPT in stripped
-                        ):
-                            self._pending_echoes.popleft()
-                            continue
-                    self._send_threadsafe(part)
-                    if self._prompt_re.match(stripped):
-                        self._at_prompt = True
-                    elif stripped:
-                        self._at_prompt = False
-                if remainder:
-                    self._send_threadsafe(remainder)
+                self._send_threadsafe(data.decode("utf-8", errors="replace"))
         finally:
             self._send_threadsafe("\r\n[Terminal closed]\r\n")
 
@@ -365,69 +334,30 @@ class TerminalSession:
         if self._chat_session:
             await self._handle_chat_data(data)
             return
-        if not self.proc:
+        if not self.proc or not self.proc.stdin:
             return
-        if self._use_pty and self._master_fd is not None:
-            os.write(self._master_fd, data.encode("utf-8", errors="ignore"))
-        else:
-            if self.proc.stdin:
-                send_data = data if self._tty_enabled else data.replace("\r", "\n")
-                self.proc.stdin.write(send_data.encode("utf-8", errors="ignore"))
-                self.proc.stdin.flush()
+        self.proc.stdin.write(data.encode("utf-8", errors="ignore"))
+        self.proc.stdin.flush()
 
     async def handle_line(self, line: str) -> None:
         if self._chat_session:
             await self._handle_chat_line(line)
             return
-        if not self.proc:
-            return
-        if self._use_pty and self._master_fd is not None:
-            os.write(self._master_fd, (line + "\r").encode("utf-8", errors="ignore"))
-            return
-        if self.proc.stdin:
-            if line.strip():
-                self._pending_echoes.append(line)
-            self._at_prompt = False
-            suffix = "\r" if self._tty_enabled else "\n"
-            self.proc.stdin.write((line + suffix).encode("utf-8", errors="ignore"))
-            self.proc.stdin.flush()
+        await self.handle_data(line + "\r")
 
     async def handle_resize(self, cols: int, rows: int) -> None:
-        if not self._use_pty or self._master_fd is None:
-            return
-        try:
-            import fcntl
-            import termios
-            import struct
-            winsz = struct.pack("HHHH", rows, cols, 0, 0)
-            fcntl.ioctl(self._master_fd, termios.TIOCSWINSZ, winsz)
-        except Exception:
-            pass
+        self._cols = max(20, int(cols or 80))
+        self._rows = max(5, int(rows or 24))
 
     async def handle_chdir(self, path: str) -> None:
-        # Host directory changes are disabled for container isolation.
-        # if not path:
-        #     return
-        # if os.path.isdir(path):
-        #     self.cwd = os.path.abspath(path)
-        #     await self.handle_data(f'cd "{self.cwd}"\r')
         return
 
     async def handle_interrupt(self) -> None:
-        if not self.proc:
+        if not self.proc or not self.proc.stdin:
             return
         try:
-            if self._use_pty and self._master_fd is not None:
-                os.write(self._master_fd, b"\x03")
-                return
-            if self.proc.stdin:
-                self.proc.stdin.write(b"\x03")
-                self.proc.stdin.flush()
-                return
-            if os.name == "nt":
-                self.proc.send_signal(signal.CTRL_BREAK_EVENT)
-            else:
-                self.proc.send_signal(signal.SIGINT)
+            self.proc.stdin.write(b"\x03")
+            self.proc.stdin.flush()
         except Exception:
             try:
                 self.proc.terminate()
