@@ -972,7 +972,7 @@
                     sendTerminalResize(fitAddon);
                 });
 
-                term.onData((data) => sendTerminalData(data));
+                term.onData((data) => handleTerminalInput(data));
 
                 terminalEl.addEventListener('copy', (e) => {
                     if (term && term.hasSelection()) {
@@ -1023,6 +1023,41 @@
         // ─────────────────────────────────────────────────────────────────
         // TERMINAL (xterm.js)
 
+        let terminalLineBuffer = '';
+
+        function handleTerminalInput(data) {
+            if (!data) return;
+
+            let shouldSendChat = false;
+            for (let i = 0; i < data.length; i++) {
+                const ch = data[i];
+                if (ch === '\r' || ch === '\n') {
+                    if (terminalLineBuffer.trim().toLowerCase() === 'chat') {
+                        shouldSendChat = true;
+                    }
+                    terminalLineBuffer = '';
+                    continue;
+                }
+                if (ch === '\x08' || ch === '\x7f') {
+                    if (terminalLineBuffer) terminalLineBuffer = terminalLineBuffer.slice(0, -1);
+                    continue;
+                }
+                if (ch === '\x15' || ch === '\x03') {
+                    terminalLineBuffer = '';
+                    continue;
+                }
+                if (ch !== '\x1b' && ch >= ' ') {
+                    terminalLineBuffer += ch;
+                }
+            }
+
+            if (shouldSendChat) {
+                sendChatStart();
+            }
+
+            sendTerminalData(data);
+        }
+
         function sendTerminalData(data) {
             if (!termSocket || termSocket.readyState !== WebSocket.OPEN) {
                 return;
@@ -1061,7 +1096,10 @@
                 if (term) term.write('\r\n[Terminal not connected]\r\n');
                 return;
             }
-            const codeContext = getEditorCodeContext();
+            const rawContext = getEditorCodeContext();
+            const codeContext = rawContext && rawContext.trim()
+                ? rawContext
+                : 'No active editor code was provided.';
             termSocket.send(JSON.stringify({
                 type: 'chat',
                 code_context: codeContext,

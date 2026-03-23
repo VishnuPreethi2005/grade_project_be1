@@ -350,6 +350,8 @@ class TerminalSession:
         self._shell_path = self._resolve_shell()
         self._chat_session: Optional[ChatbotSession] = None
         self._chat_buffer = ""
+        self._last_code_context = ""
+        self._line_buffer = ""
         self._cols = 80
         self._rows = 24
         self._version_required_notice_sent = False
@@ -366,69 +368,6 @@ class TerminalSession:
         #     return [shell, "-i"]
         # return [shell]
         return []
-
-    def _resolve_shell(self) -> str:
-        env_shell = os.environ.get("TERMINAL_SHELL")
-        if env_shell:
-            return env_shell
-        try:
-            probe = subprocess.run(
-                [
-                    "docker",
-                    "exec",
-                    self.container_name,
-                    "/bin/sh",
-                    "-c",
-                    "if command -v bash >/dev/null 2>&1; then command -v bash; "
-                    "elif [ -x /bin/bash ]; then echo /bin/bash; else echo /bin/sh; fi",
-                ],
-                capture_output=True,
-                text=True,
-            )
-            if probe.returncode == 0:
-                shell_path = (probe.stdout or "").strip().splitlines()[-1].strip()
-                if shell_path and (shell_path.endswith("bash") or shell_path == "/bin/sh"):
-                    return shell_path
-        except Exception:
-            pass
-        return "/bin/sh"
-
-    def _get_docker_exec_cmd(self, use_tty: bool) -> List[str]:
-        cmd = ["docker", "exec"]
-        if use_tty:
-            cmd.append("-t")
-        cmd.extend(
-            [
-                "-i",
-                "-e",
-                f"PS1={CONTAINER_PROMPT} ",
-                "-w",
-                CONTAINER_WORKDIR,
-                self.container_name,
-            ]
-        )
-        shell_path = self._shell_path or "/bin/sh"
-        shell_args = ["-i"]
-        if shell_path.endswith("bash"):
-            shell_args = ["--noprofile", "--norc", "-i"]
-
-        prompt_value = f"{CONTAINER_PROMPT} "
-        prompt_export = f"export PS1={shlex.quote(prompt_value)}"
-        shell_cmd = " ".join(shlex.quote(part) for part in [shell_path, *shell_args])
-        base_cmd = f"{prompt_export}; stty -echo 2>/dev/null; exec {shell_cmd}"
-
-        if use_tty:
-            cmd.extend(["/bin/sh", "-lc", base_cmd])
-            return cmd
-
-        # Use script(1) to allocate a PTY inside the container when host TTY is unavailable.
-        wrapper = (
-            "if command -v script >/dev/null 2>&1; then "
-            f"exec script -q /dev/null -c {shlex.quote(base_cmd)}; "
-            f"else exec /bin/sh -lc {shlex.quote(base_cmd)}; fi"
-        )
-        cmd.extend(["/bin/sh", "-lc", wrapper])
-        return cmd
 
     def _start_process(self) -> None:
         if self.proc or not self.container_name:
@@ -542,6 +481,11 @@ class TerminalSession:
         except Exception:
             self._closed = True
 
+    def update_code_context(self, code_context: str) -> None:
+        cleaned_context = (code_context or "").strip()
+        if cleaned_context:
+            self._last_code_context = code_context
+
     def _pump_output(self) -> None:
         if not self.proc or not self.proc.stdout:
             return
@@ -554,6 +498,27 @@ class TerminalSession:
         finally:
             self._send_threadsafe("\r\n[Terminal closed]\r\n")
 
+    async def start_chat(self, code_context: str) -> None:
+        if self._chat_session:
+            await self.send("Chatbot is already running. Type exit or Ctrl+C to stop.\r\n")
+            return
+        try:
+            cleaned_context = (code_context or "").strip()
+            if cleaned_context:
+                self._last_code_context = code_context
+            effective_context = self._last_code_context or ""
+            if not effective_context.strip():
+                effective_context = "No active editor code was provided."
+                await self.send("\r\nChatbot started. No active editor code was provided.\r\n")
+            self._chat_session = run_chatbot_menu(effective_context)
+        except Exception as exc:
+            await self.send(f"Chatbot error: {exc}\r\n")
+            await self.send(self._chatbot_env_diagnostics())
+            self._chat_session = None
+            return
+        self._chat_buffer = ""
+        await self.send("\r\n" + self._chat_session.menu_text)
+
     async def handle_data(self, data: str) -> None:
         if self._chat_session:
             await self._handle_chat_data(data)
@@ -562,14 +527,54 @@ class TerminalSession:
             return
         if not self.proc or not self.proc.stdin:
             return
-        self.proc.stdin.write(data.encode("utf-8", errors="ignore"))
-        self.proc.stdin.flush()
-
-    async def handle_line(self, line: str) -> None:
-        if self._chat_session:
-            await self._handle_chat_line(line)
+        if not data:
             return
-        await self.handle_data(line + "\r")
+
+        forward = []
+        idx = 0
+        length = len(data)
+        while idx < length:
+            ch = data[idx]
+            if ch == "\r" or ch == "\n":
+                if ch == "\r" and idx + 1 < length and data[idx + 1] == "\n":
+                    idx += 1
+                line = self._line_buffer.strip()
+                self._line_buffer = ""
+                if line.lower() == "chat":
+                    if forward:
+                        self.proc.stdin.write("".join(forward).encode("utf-8", errors="ignore"))
+                        self.proc.stdin.flush()
+                        forward = []
+                    try:
+                        self.proc.stdin.write(b"\x15")
+                        self.proc.stdin.flush()
+                    except Exception:
+                        pass
+                    await self.start_chat("")
+                    remaining = data[idx + 1 :]
+                    if remaining:
+                        await self._handle_chat_data(remaining)
+                    return
+                forward.append(ch)
+                idx += 1
+                continue
+
+            if ch in ("\x08", "\x7f"):
+                if self._line_buffer:
+                    self._line_buffer = self._line_buffer[:-1]
+            elif ch == "\x15":
+                self._line_buffer = ""
+            elif ch == "\x03":
+                self._line_buffer = ""
+            elif ch != "\x1b" and ch.isprintable():
+                self._line_buffer += ch
+
+            forward.append(ch)
+            idx += 1
+
+        if forward:
+            self.proc.stdin.write("".join(forward).encode("utf-8", errors="ignore"))
+            self.proc.stdin.flush()
 
     async def handle_resize(self, cols: int, rows: int) -> None:
         self._cols = max(20, int(cols or 80))
@@ -579,6 +584,12 @@ class TerminalSession:
         return
 
     async def handle_interrupt(self) -> None:
+        if self._chat_session:
+            self._chat_session = None
+            self._chat_buffer = ""
+            await self.send("^C\r\nExited chatbot.\r\n")
+            return
+
         if not self.proc or not self.proc.stdin:
             return
         try:
@@ -590,26 +601,64 @@ class TerminalSession:
             except Exception:
                 pass
 
-    async def start_chat(self, code_context: str) -> None:
+
+    async def handle_line(self, line: str) -> None:
+        line = line.strip()
+
+        if line.lower() == "chat":
+            await self.start_chat("")
+            return
+
         if self._chat_session:
-            await self.send("Chatbot is already running. Type exit to stop.\r\n")
+            if line.lower() == "exit":
+                self._chat_session = None
+                self._chat_buffer = ""
+                await self.send("Exited chatbot.\r\n")
+                return
+            await self._handle_chat_line(line)
             return
-        diagnostics = self._chatbot_env_diagnostics()
-        await self.send(diagnostics)
-        if "IMPORT FAILED" in diagnostics:
-            await self.send(
-                "Chatbot cannot start because dependencies are missing in the backend "
-                "environment. Installing inside the Docker container will not fix this.\r\n"
-            )
-            return
-        self._chat_session = run_chatbot_menu(code_context or "")
-        await self.send(self._chat_session.menu_text)
+
+        await self.handle_data(line + "\r")
 
     async def _handle_chat_data(self, data: str) -> None:
-        self._chat_buffer += data.replace("\r", "\n")
-        while "\n" in self._chat_buffer:
-            line, self._chat_buffer = self._chat_buffer.split("\n", 1)
-            await self._handle_chat_line(line)
+        if not self._chat_session:
+            return
+
+        for ch in data:
+            # Ctrl+C -> exit chatbot mode
+            if ch == "\x03":
+                self._chat_session = None
+                self._chat_buffer = ""
+                await self.send("^C\r\nExited chatbot.\r\n")
+                return
+
+            # Enter -> process one line
+            if ch in ("\r", "\n"):
+                line = self._chat_buffer.strip()
+                self._chat_buffer = ""
+                await self.send("\r\n")
+                if line:
+                    await self._handle_chat_line(line)
+                continue
+
+            # Backspace / Delete
+            if ch in ("\x08", "\x7f"):
+                if self._chat_buffer:
+                    self._chat_buffer = self._chat_buffer[:-1]
+                    await self.send("\b \b")
+                continue
+
+            # Ctrl+U clear line
+            if ch == "\x15":
+                while self._chat_buffer:
+                    self._chat_buffer = self._chat_buffer[:-1]
+                    await self.send("\b \b")
+                continue
+
+            # Printable characters
+            if ch.isprintable():
+                self._chat_buffer += ch
+                await self.send(ch)
 
     async def _handle_chat_line(self, line: str) -> None:
         if not self._chat_session:
@@ -666,6 +715,10 @@ class CreateItemRequest(BaseModel):
 class SaveFileRequest(BaseModel):
     file_name: str
     code_content: str
+
+class RunFileRequest(BaseModel):
+    file_name: str
+    stdin_input: Optional[str] = None
 
 class TerminalContainerRequest(BaseModel):
     container_name: str
@@ -1135,7 +1188,10 @@ async def terminal_ws(websocket: WebSocket):
             elif msg_type == "line":
                 await session.handle_line(payload.get("data", ""))
             elif msg_type == "chat":
-                await session.start_chat(payload.get("code_context", ""))
+                code_context = payload.get("code_context", "")
+                session.update_code_context(code_context)
+                if not session._chat_session and session._line_buffer.strip().lower() != "chat":
+                    await session.start_chat(code_context)
             elif msg_type == "resize":
                 await session.handle_resize(int(payload.get("cols", 80)), int(payload.get("rows", 24)))
             elif msg_type == "chdir":
