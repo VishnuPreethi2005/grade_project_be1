@@ -15,19 +15,23 @@ import re
 import platform
 import importlib
 import shlex
+import zipfile
 from urllib.parse import parse_qs
 from collections import deque
 from typing import List, Optional, Dict, Any
+from dotenv import load_dotenv
 from workspace_module2.container_manager import start_or_reuse_container, start_or_reuse_container_for_path
 from workspace_module1.chatbot import run_chatbot_menu, ChatbotSession
 # import tkinter as tk (Moved to local scope)
 # from tkinter import filedialog (Moved to local scope)
 
+load_dotenv()
+
 app = FastAPI()
 
 # Global state
 CURRENT_DIR: Optional[str] = None
-DOCKER_HOST_ROOT: str = r"C:\ip_docker"
+WORKSPACE_ROOT: str = os.path.abspath(os.getenv("WORKSPACE_ROOT", r"C:\ip_docker\Workspace"))
 CURRENT_CONTAINER_NAME: Optional[str] = os.environ.get("TERMINAL_CONTAINER_NAME")
 CONTAINER_WORKDIR: str = "/workspace"
 DEFAULT_CONTAINER_SHELL: str = "/bin/sh"
@@ -51,6 +55,68 @@ IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
 BINARY_EXTENSIONS = {".pkl", ".pt"}
 SPECIAL_TEXT_NAMES = {"requirements.txt"}
 
+os.makedirs(WORKSPACE_ROOT, exist_ok=True)
+
+CONTAINER_PTY_BRIDGE_SCRIPT = r"""
+import os
+import pty
+import select
+import signal
+import sys
+import tempfile
+
+shell = os.environ.get("MINI_IDE_SHELL", "/bin/sh")
+workdir = os.environ.get("MINI_IDE_WORKDIR", "/workspace")
+term = os.environ.get("TERM", "xterm-256color")
+
+try:
+    os.chdir(workdir)
+except Exception:
+    pass
+
+pid, master_fd = pty.fork()
+if pid == 0:
+    os.environ["TERM"] = term
+    if os.path.basename(shell) == "bash":
+        fd, inputrc_path = tempfile.mkstemp(prefix="miniide_inputrc_")
+        with os.fdopen(fd, "w", encoding="utf-8") as inputrc:
+            inputrc.write("set enable-bracketed-paste off\n")
+        os.environ["INPUTRC"] = inputrc_path
+    os.execv(shell, [shell, "-i"])
+
+stdin_fd = sys.stdin.fileno()
+stdout = sys.stdout.buffer
+
+while True:
+    try:
+        readable, _, _ = select.select([master_fd, stdin_fd], [], [])
+    except OSError:
+        break
+
+    if master_fd in readable:
+        try:
+            data = os.read(master_fd, 4096)
+        except OSError:
+            break
+        if not data:
+            break
+        stdout.write(data)
+        stdout.flush()
+
+    if stdin_fd in readable:
+        try:
+            data = os.read(stdin_fd, 4096)
+        except OSError:
+            break
+        if not data:
+            try:
+                os.kill(pid, signal.SIGHUP)
+            except OSError:
+                pass
+            break
+        os.write(master_fd, data)
+"""
+
 # Local dictionary to track if container is being started
 IS_CONTAINER_READY: Dict[str, bool] = {}
 
@@ -68,6 +134,80 @@ def _set_runtime(workspace_path: Optional[str], runtime: Dict[str, str]) -> None
     if not key:
         return
     WORKSPACE_RUNTIME[key] = runtime
+
+def _sanitize_workspace_name(name: Optional[str]) -> str:
+    candidate = (name or DEFAULT_WORKSPACE_NAME).strip()
+    candidate = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "-", candidate)
+    candidate = re.sub(r"\s+", " ", candidate).strip(" .")
+    return candidate or DEFAULT_WORKSPACE_NAME
+
+def _workspace_root() -> str:
+    if not CURRENT_DIR:
+        raise HTTPException(status_code=400, detail="No workspace opened")
+    root = os.path.abspath(CURRENT_DIR)
+    try:
+        if os.path.commonpath([WORKSPACE_ROOT, root]) != WORKSPACE_ROOT:
+            raise HTTPException(status_code=400, detail="Workspace is outside WORKSPACE_ROOT")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid workspace root")
+    os.makedirs(root, exist_ok=True)
+    return root
+
+def _resolve_workspace_path(relative_path: Optional[str], *, allow_empty: bool = False) -> str:
+    root = _workspace_root()
+    raw = (relative_path or "").strip()
+    normalized = raw.replace("\\", "/").strip("/")
+    if not normalized:
+        if allow_empty:
+            return root
+        raise HTTPException(status_code=400, detail="Path is required")
+
+    target = os.path.abspath(os.path.join(root, normalized))
+    try:
+        if os.path.commonpath([root, target]) != root:
+            raise HTTPException(status_code=400, detail="Path escapes workspace root")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    return target
+
+def _resolve_workspace_folder_from_name(workspace_name: str) -> str:
+    raw_name = (workspace_name or "").strip()
+    if not raw_name:
+        raise HTTPException(status_code=400, detail="workspace_name required")
+    if ".." in raw_name or "/" in raw_name or "\\" in raw_name:
+        raise HTTPException(status_code=400, detail="Invalid workspace_name")
+
+    safe_name = _sanitize_workspace_name(raw_name)
+    workspace_path = os.path.abspath(os.path.join(WORKSPACE_ROOT, safe_name))
+    try:
+        if os.path.commonpath([WORKSPACE_ROOT, workspace_path]) != WORKSPACE_ROOT:
+            raise HTTPException(status_code=400, detail="Invalid workspace_name")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid workspace_name")
+    return workspace_path
+
+def zip_workspace(workspace_name: str):
+    workspace_path = _resolve_workspace_folder_from_name(workspace_name)
+
+    if not os.path.exists(workspace_path) or not os.path.isdir(workspace_path):
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    safe_name = os.path.basename(workspace_path.rstrip("\\/"))
+    zip_path = os.path.abspath(os.path.join(WORKSPACE_ROOT, f"{safe_name}.zip"))
+    try:
+        if os.path.commonpath([WORKSPACE_ROOT, zip_path]) != WORKSPACE_ROOT:
+            raise HTTPException(status_code=400, detail="Invalid workspace_name")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid workspace_name")
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for root, dirs, files in os.walk(workspace_path):
+            for file in files:
+                full_path = os.path.join(root, file)
+                arcname = os.path.relpath(full_path, workspace_path)
+                zipf.write(full_path, arcname)
+
+    return zip_path
 
 # Resolve container name from websocket query params or global/env.
 def _resolve_container_name(scope: Dict[str, Any]) -> Optional[str]:
@@ -92,8 +232,8 @@ def _ensure_workspace_dir() -> str:
     global CURRENT_DIR
     if CURRENT_DIR and os.path.isdir(CURRENT_DIR):
         return CURRENT_DIR
-    os.makedirs(DOCKER_HOST_ROOT, exist_ok=True)
-    default_path = os.path.join(DOCKER_HOST_ROOT, DEFAULT_WORKSPACE_NAME)
+    os.makedirs(WORKSPACE_ROOT, exist_ok=True)
+    default_path = os.path.join(WORKSPACE_ROOT, DEFAULT_WORKSPACE_NAME)
     os.makedirs(default_path, exist_ok=True)
     CURRENT_DIR = default_path
     return CURRENT_DIR
@@ -206,18 +346,12 @@ class TerminalSession:
         self.proc: Optional[subprocess.Popen] = None
         self._closed = False
         self._loop = asyncio.get_running_loop()
-        self._is_windows = platform.system().lower().startswith("win")
-        self._use_pty = not self._is_windows
-        self._tty_enabled = not self._is_windows
-        self._master_fd: Optional[int] = None
         self._reader_thread: Optional[threading.Thread] = None
-        self._pending_echoes = deque()
-        self._output_buffer = ""
-        self._at_prompt = False
-        self._prompt_re = re.compile(rf"^{re.escape(CONTAINER_PROMPT)}\\s*$")
-        self._shell_path: Optional[str] = None
+        self._shell_path = self._resolve_shell()
         self._chat_session: Optional[ChatbotSession] = None
         self._chat_buffer = ""
+        self._cols = 80
+        self._rows = 24
         self._version_required_notice_sent = False
 
         if self.container_name:
@@ -299,45 +433,27 @@ class TerminalSession:
     def _start_process(self) -> None:
         if self.proc or not self.container_name:
             return
-        self._shell_path = self._resolve_shell()
+
         env = os.environ.copy()
         env.setdefault("PYTHONUNBUFFERED", "1")
 
-        if self._use_pty:
-            import pty  # Posix only
-            self._master_fd, slave_fd = pty.openpty()
-            docker_cmd = self._get_docker_exec_cmd(use_tty=True)
-            self.proc = subprocess.Popen(
-                docker_cmd,
-                stdin=slave_fd,
-                stdout=slave_fd,
-                stderr=slave_fd,
-                preexec_fn=os.setsid,
-                bufsize=0,
-                env=env,
-            )
-            os.close(slave_fd)
-            self._reader_thread = threading.Thread(target=self._pump_pty_output, daemon=True)
-            self._reader_thread.start()
-        else:
-            creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
-            docker_cmd = self._get_docker_exec_cmd(use_tty=False)
-            self._tty_enabled = True
-            self.proc = subprocess.Popen(
-                docker_cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                bufsize=0,
-                creationflags=creationflags,
-                env=env,
-            )
-            self._reader_thread = threading.Thread(target=self._pump_pipe_output, daemon=True)
-            self._reader_thread.start()
+        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+        self.proc = subprocess.Popen(
+            self._get_docker_exec_cmd(),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=0,
+            creationflags=creationflags,
+            env=env,
+        )
+        self._reader_thread = threading.Thread(target=self._pump_output, daemon=True)
+        self._reader_thread.start()
 
     async def _ensure_started(self) -> bool:
         if self.proc:
             return True
+
         runtime = _get_runtime(self.workspace_path)
         python_version = (runtime.get("python_version") or "").strip()
         if not python_version:
@@ -347,6 +463,7 @@ class TerminalSession:
                 )
                 self._version_required_notice_sent = True
             return False
+
         if not runtime.get("container_name"):
             try:
                 _ensure_container_for_workspace(self.workspace_path or "")
@@ -354,12 +471,60 @@ class TerminalSession:
                 await self.send(f"[Terminal error] {exc}\r\n")
                 return False
             runtime = _get_runtime(self.workspace_path)
+
         self.container_name = runtime.get("container_name")
         if not self.container_name:
             await self.send("[Terminal error] Container is not available.\r\n")
             return False
+
+        self._shell_path = self._resolve_shell()
         self._start_process()
         return self.proc is not None
+
+    def _resolve_shell(self) -> str:
+        env_shell = os.environ.get("TERMINAL_SHELL")
+        if env_shell:
+            return env_shell
+        try:
+            probe = subprocess.run(
+                [
+                    "docker",
+                    "exec",
+                    self.container_name,
+                    "/bin/sh",
+                    "-c",
+                    "if [ -x /bin/bash ]; then echo /bin/bash; else echo /bin/sh; fi",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if probe.returncode == 0:
+                shell_path = (probe.stdout or "").strip()
+                if shell_path in ("/bin/bash", "/bin/sh"):
+                    return shell_path
+        except Exception:
+            pass
+        return DEFAULT_CONTAINER_SHELL
+
+    def _get_docker_exec_cmd(self) -> List[str]:
+        return [
+            "docker",
+            "exec",
+            "-i",
+            "-e",
+            f"MINI_IDE_SHELL={self._shell_path}",
+            "-e",
+            f"MINI_IDE_WORKDIR={CONTAINER_WORKDIR}",
+            "-e",
+            "TERM=xterm-256color",
+            "-w",
+            CONTAINER_WORKDIR,
+            self.container_name,
+            "python",
+            "-u",
+            "-c",
+            CONTAINER_PTY_BRIDGE_SCRIPT,
+        ]
 
     async def send(self, text: str) -> None:
         if self._closed:
@@ -377,68 +542,15 @@ class TerminalSession:
         except Exception:
             self._closed = True
 
-    def _normalize_output(self, text: str) -> str:
-        # Normalize line endings and strip control characters for non-TTY output.
-        normalized = text.replace("\r\n", "\n").replace("\r", "")
-        out_chars = []
-        for ch in normalized:
-            code = ord(ch)
-            if ch in ("\n", "\t"):
-                out_chars.append(ch)
-                continue
-            if code < 32 or (127 <= code < 160):
-                continue
-            out_chars.append(ch)
-        return "".join(out_chars)
-
-    def _pump_pty_output(self) -> None:
-        if self._master_fd is None:
-            return
-        try:
-            while True:
-                rlist, _, _ = select.select([self._master_fd], [], [], 0.1)
-                if not rlist:
-                    if self.proc and self.proc.poll() is not None:
-                        break
-                    continue
-                data = os.read(self._master_fd, 1024)
-                if not data:
-                    break
-                self._send_threadsafe(data.decode("utf-8", errors="replace"))
-        finally:
-            self._send_threadsafe("\r\n[Terminal closed]\r\n")
-
-    def _pump_pipe_output(self) -> None:
+    def _pump_output(self) -> None:
         if not self.proc or not self.proc.stdout:
             return
         try:
             while True:
-                data = self.proc.stdout.read(1024)
+                data = self.proc.stdout.read(4096)
                 if not data:
                     break
-                text = self._normalize_output(data.decode("utf-8", errors="replace"))
-                self._output_buffer += text
-                lines = self._output_buffer.splitlines(keepends=True)
-                remainder = ""
-                if lines and not (lines[-1].endswith("\n") or lines[-1].endswith("\r")):
-                    remainder = lines.pop()
-                self._output_buffer = ""
-                for part in lines:
-                    stripped = part.rstrip("\r\n")
-                    if stripped and self._pending_echoes:
-                        pending = self._pending_echoes[0]
-                        if stripped == pending or (
-                            stripped.endswith(pending) and CONTAINER_PROMPT in stripped
-                        ):
-                            self._pending_echoes.popleft()
-                            continue
-                    self._send_threadsafe(part)
-                    if self._prompt_re.match(stripped):
-                        self._at_prompt = True
-                    elif stripped:
-                        self._at_prompt = False
-                if remainder:
-                    self._send_threadsafe(remainder)
+                self._send_threadsafe(data.decode("utf-8", errors="replace"))
         finally:
             self._send_threadsafe("\r\n[Terminal closed]\r\n")
 
@@ -448,67 +560,30 @@ class TerminalSession:
             return
         if not await self._ensure_started():
             return
-        if self._use_pty and self._master_fd is not None:
-            os.write(self._master_fd, data.encode("utf-8", errors="ignore"))
-        else:
-            if self.proc.stdin:
-                send_data = data if self._tty_enabled else data.replace("\r", "\n")
-                self.proc.stdin.write(send_data.encode("utf-8", errors="ignore"))
-                self.proc.stdin.flush()
+        if not self.proc or not self.proc.stdin:
+            return
+        self.proc.stdin.write(data.encode("utf-8", errors="ignore"))
+        self.proc.stdin.flush()
 
     async def handle_line(self, line: str) -> None:
         if self._chat_session:
             await self._handle_chat_line(line)
             return
-        if not await self._ensure_started():
-            return
-        if self._use_pty and self._master_fd is not None:
-            os.write(self._master_fd, (line + "\r").encode("utf-8", errors="ignore"))
-            return
-        if self.proc.stdin:
-            if line.strip():
-                self._pending_echoes.append(line)
-            self._at_prompt = False
-            suffix = "\r" if self._tty_enabled else "\n"
-            self.proc.stdin.write((line + suffix).encode("utf-8", errors="ignore"))
-            self.proc.stdin.flush()
+        await self.handle_data(line + "\r")
 
     async def handle_resize(self, cols: int, rows: int) -> None:
-        if not self._use_pty or self._master_fd is None:
-            return
-        try:
-            import fcntl
-            import termios
-            import struct
-            winsz = struct.pack("HHHH", rows, cols, 0, 0)
-            fcntl.ioctl(self._master_fd, termios.TIOCSWINSZ, winsz)
-        except Exception:
-            pass
+        self._cols = max(20, int(cols or 80))
+        self._rows = max(5, int(rows or 24))
 
     async def handle_chdir(self, path: str) -> None:
-        # Host directory changes are disabled for container isolation.
-        # if not path:
-        #     return
-        # if os.path.isdir(path):
-        #     self.cwd = os.path.abspath(path)
-        #     await self.handle_data(f'cd "{self.cwd}"\r')
         return
 
     async def handle_interrupt(self) -> None:
-        if not self.proc:
+        if not self.proc or not self.proc.stdin:
             return
         try:
-            if self._use_pty and self._master_fd is not None:
-                os.write(self._master_fd, b"\x03")
-                return
-            if self.proc.stdin:
-                self.proc.stdin.write(b"\x03")
-                self.proc.stdin.flush()
-                return
-            if os.name == "nt":
-                self.proc.send_signal(signal.CTRL_BREAK_EVENT)
-            else:
-                self.proc.send_signal(signal.SIGINT)
+            self.proc.stdin.write(b"\x03")
+            self.proc.stdin.flush()
         except Exception:
             try:
                 self.proc.terminate()
@@ -606,7 +681,7 @@ class SelectPythonVersionRequest(BaseModel):
 
 @app.get("/pick_folder")
 async def pick_folder():
-    """Triggers a real Windows folder selection dialog and copies to Docker Root if needed."""
+    """Triggers a real Windows folder selection dialog and copies to WORKSPACE_ROOT if needed."""
     global CURRENT_DIR
     import tkinter as tk
     from tkinter import filedialog
@@ -620,14 +695,19 @@ async def pick_folder():
     if selected_path:
         selected_path = os.path.abspath(selected_path)
         folder_name = os.path.basename(selected_path)
-        target_path = os.path.join(DOCKER_HOST_ROOT, folder_name)
+        target_path = os.path.join(WORKSPACE_ROOT, folder_name)
         
-        # If the selected path is already in the DOCKER_HOST_ROOT, use it directly
-        if selected_path.lower().startswith(DOCKER_HOST_ROOT.lower()):
+        # If the selected path is already in WORKSPACE_ROOT, use it directly
+        in_workspace_root = False
+        try:
+            in_workspace_root = os.path.commonpath([WORKSPACE_ROOT, selected_path]) == WORKSPACE_ROOT
+        except ValueError:
+            in_workspace_root = False
+        if in_workspace_root:
             CURRENT_DIR = selected_path
         else:
-            # Copy to DOCKER_HOST_ROOT
-            os.makedirs(DOCKER_HOST_ROOT, exist_ok=True)
+            # Copy to WORKSPACE_ROOT
+            os.makedirs(WORKSPACE_ROOT, exist_ok=True)
             
             # Simple clash prevention: if target exists, remove it first (clean slate)
             if os.path.exists(target_path):
@@ -652,38 +732,50 @@ async def pick_folder():
 
 @app.get("/pick_host_root")
 async def pick_host_root():
-    """Triggers a dialog specifically for the Docker Host Root."""
-    global DOCKER_HOST_ROOT
+    """Triggers a dialog specifically for the workspace root."""
+    global WORKSPACE_ROOT
     import tkinter as tk
     from tkinter import filedialog
     root = tk.Tk()
     root.withdraw()
     root.attributes('-topmost', True)
     
-    selected_path = filedialog.askdirectory(title="Select Docker Host Root")
+    selected_path = filedialog.askdirectory(title="Select Workspace Root")
     root.destroy()
     
     if selected_path:
-        DOCKER_HOST_ROOT = os.path.abspath(selected_path)
-        return {"host_root": DOCKER_HOST_ROOT, "status": "success"}
+        WORKSPACE_ROOT = os.path.abspath(selected_path)
+        os.makedirs(WORKSPACE_ROOT, exist_ok=True)
+        return {"host_root": WORKSPACE_ROOT, "status": "success"}
     return {"status": "cancelled"}
 
 @app.post("/create_folder_workspace")
 async def create_folder_workspace(request: PathRequest):
     """Creates a new folder on the system and sets it as the workspace."""
     global CURRENT_DIR
-    if not request.path:
-        # User requested projects to be under the Docker Root
-        os.makedirs(DOCKER_HOST_ROOT, exist_ok=True)
-        request.path = os.path.join(DOCKER_HOST_ROOT, request.name or "NewProject")
-
-    target_path = os.path.abspath(os.path.expanduser(request.path))
+    os.makedirs(WORKSPACE_ROOT, exist_ok=True)
+    if request.path:
+        target_path = os.path.abspath(os.path.expanduser(request.path))
+        try:
+            if os.path.commonpath([WORKSPACE_ROOT, target_path]) != WORKSPACE_ROOT:
+                raise HTTPException(status_code=400, detail="Workspace path must be inside WORKSPACE_ROOT")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid workspace path")
+    else:
+        workspace_name = _sanitize_workspace_name(request.name)
+        target_path = os.path.abspath(os.path.join(WORKSPACE_ROOT, workspace_name))
     try:
+        if os.path.exists(target_path) and not os.path.isdir(target_path):
+            raise HTTPException(status_code=400, detail="A file already exists at the requested workspace path")
         os.makedirs(target_path, exist_ok=True)
         CURRENT_DIR = target_path
         global CURRENT_CONTAINER_NAME
         CURRENT_CONTAINER_NAME = None
-        return {"current_dir": CURRENT_DIR, "status": "success"}
+        return {
+            "current_dir": CURRENT_DIR,
+            "workspace_name": os.path.basename(CURRENT_DIR.rstrip("\\/")) or DEFAULT_WORKSPACE_NAME,
+            "status": "success",
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -692,6 +784,7 @@ async def list_files():
     """Returns the hierarchical file tree for the active workspace."""
     if not CURRENT_DIR:
         return {"files": [], "current_dir": None, "status": "no_workspace"}
+    workspace_root = _workspace_root()
 
     def build_tree(base_path):
         nodes = []
@@ -699,7 +792,7 @@ async def list_files():
             items = sorted(os.listdir(base_path), key=lambda x: (not os.path.isdir(os.path.join(base_path, x)), x.lower()))
             for item in items:
                 path = os.path.join(base_path, item)
-                rel_path = os.path.relpath(path, CURRENT_DIR).replace("\\", "/")
+                rel_path = os.path.relpath(path, workspace_root).replace("\\", "/")
                 is_dir = os.path.isdir(path)
                 node = {
                     "name": item,
@@ -719,8 +812,8 @@ async def list_files():
         "locked": bool(runtime.get("python_version")),
     }
     return {
-        "files": build_tree(CURRENT_DIR),
-        "current_dir": CURRENT_DIR,
+        "files": build_tree(workspace_root),
+        "current_dir": workspace_root,
         "status": "success",
         "runtime": runtime_payload,
     }
@@ -761,8 +854,6 @@ async def select_python_version(request: SelectPythonVersionRequest):
 @app.post("/create_item")
 async def create_item(request: CreateItemRequest):
     """Creates a new file or folder inside the active workspace."""
-    if not CURRENT_DIR:
-        raise HTTPException(status_code=400, detail="No workspace opened")
     try:
         if request.type not in ("file", "folder"):
             raise HTTPException(status_code=400, detail="Invalid item type")
@@ -773,10 +864,15 @@ async def create_item(request: CreateItemRequest):
         if request.type == "folder":
             os.makedirs(target_path, exist_ok=True)
         else:
-            os.makedirs(os.path.dirname(target_path), exist_ok=True)
-            with open(target_path, "w", encoding="utf-8") as f:
+            parent_dir = os.path.dirname(target_path)
+            if parent_dir:
+                os.makedirs(parent_dir, exist_ok=True)
+            with open(target_path, "x", encoding="utf-8"):
                 pass
-        return {"status": "success"}
+        return {
+                    "status": "success",
+                    "path": os.path.relpath(target_path, _workspace_root()).replace("\\", "/")
+                }
     except HTTPException:
         raise
     except Exception as e:
@@ -785,8 +881,6 @@ async def create_item(request: CreateItemRequest):
 @app.post("/delete_item")
 async def delete_item(request: PathRequest):
     """Deletes a file or folder from the workspace."""
-    if not CURRENT_DIR:
-        raise HTTPException(status_code=400, detail="No workspace opened")
     target_rel_path = request.path or request.name
     if not target_rel_path:
         raise HTTPException(status_code=400, detail="Path or Name is required")
@@ -808,8 +902,6 @@ async def delete_item(request: PathRequest):
 
 @app.post("/save_file")
 async def save_file(request: SaveFileRequest):
-    if not CURRENT_DIR:
-        raise HTTPException(status_code=400, detail="No workspace opened")
     try:
         path = _safe_workspace_path(request.file_name)
         if os.path.isdir(path):
@@ -828,8 +920,6 @@ async def save_file(request: SaveFileRequest):
 
 @app.get("/view_file")
 async def view_file(file_name: str):
-    if not CURRENT_DIR:
-        raise HTTPException(status_code=400, detail="No workspace opened")
     try:
         path = _safe_workspace_path(file_name)
         if not os.path.exists(path):
@@ -899,17 +989,61 @@ async def rename_item(request: RenameItemRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/run_file")
+async def run_file(request: RunFileRequest):
+    try:
+        file_path = _resolve_workspace_path(request.file_name)
+        if not os.path.isfile(file_path):
+            raise HTTPException(status_code=404, detail="File not found")
+        file_dir = os.path.dirname(file_path) or _workspace_root()
+        env = os.environ.copy()
+        env["PYTHONUNBUFFERED"] = "1"
+        process = subprocess.run(
+            [sys.executable, file_path],
+            cwd=file_dir,
+            input=request.stdin_input if request.stdin_input else None,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=env
+        )
+        return {
+            "stdout": process.stdout,
+            "stderr": process.stderr,
+            "returncode": process.returncode,
+            "status": "success"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/update_host_root")
 async def update_host_root(request: PathRequest):
-    global DOCKER_HOST_ROOT
+    global WORKSPACE_ROOT
     if not request.path:
         raise HTTPException(status_code=400, detail="Path is required")
-    DOCKER_HOST_ROOT = os.path.abspath(request.path)
-    return {"status": "success", "new_root": DOCKER_HOST_ROOT}
+    WORKSPACE_ROOT = os.path.abspath(request.path)
+    os.makedirs(WORKSPACE_ROOT, exist_ok=True)
+    return {"status": "success", "new_root": WORKSPACE_ROOT}
 
 @app.get("/get_host_root")
 async def get_host_root():
-    return {"host_root": DOCKER_HOST_ROOT}
+    return {"host_root": WORKSPACE_ROOT}
+
+@app.post("/zip_workspace")
+def zip_workspace_api(data: dict):
+    workspace_name = data.get("workspace_name")
+
+    if not workspace_name:
+        raise HTTPException(status_code=400, detail="workspace_name required")
+
+    zip_path = zip_workspace(workspace_name)
+
+    return {
+        "message": "Workspace zipped successfully",
+        "zip_path": zip_path
+    }
 
 @app.post("/terminal/set_container")
 async def set_terminal_container(request: TerminalContainerRequest):
@@ -921,7 +1055,7 @@ async def set_terminal_container(request: TerminalContainerRequest):
 
 @app.post("/close_workspace")
 async def close_workspace():
-    """Closes the current workspace and REMOVES it if it's within the Docker Host Root."""
+    """Closes the current workspace and REMOVES it if it's within WORKSPACE_ROOT."""
     global CURRENT_DIR
     global CURRENT_CONTAINER_NAME
     if not CURRENT_DIR:
@@ -933,11 +1067,16 @@ async def close_workspace():
     WORKSPACE_RUNTIME.pop(_workspace_key(path_to_delete), None)
     
     try:
-        norm_curr = os.path.normpath(path_to_delete).lower()
-        norm_root = os.path.normpath(DOCKER_HOST_ROOT).lower()
+        norm_curr = os.path.normpath(path_to_delete)
+        norm_root = os.path.normpath(WORKSPACE_ROOT)
+        inside_root = False
+        try:
+            inside_root = os.path.commonpath([norm_root, norm_curr]) == norm_root and norm_curr != norm_root
+        except ValueError:
+            inside_root = False
         
-        # Check if the project is inside DOCKER_HOST_ROOT
-        if norm_curr.startswith(norm_root) and len(norm_curr) > len(norm_root):
+        # Check if the project is inside WORKSPACE_ROOT
+        if inside_root:
             if os.path.exists(path_to_delete):
                 # Retry loop to handle Windows file locks (e.g. while Docker is stopping)
                 import time
@@ -991,7 +1130,7 @@ async def terminal_ws(websocket: WebSocket):
                 payload = {"type": "data", "data": message}
 
             msg_type = payload.get("type")
-            if msg_type == "data":
+            if msg_type in ("data", "input"):
                 await session.handle_data(payload.get("data", ""))
             elif msg_type == "line":
                 await session.handle_line(payload.get("data", ""))

@@ -23,7 +23,7 @@ app.mount("/module2", m2)
 if __name__ == "__main__":
     print("--------------------------------------------------")
     print("🚀 Mini IDE stable server is starting...")
-    print("🔗 Link: http://localhost:8000/mini_ide")
+    print("🔗 Link: http://localhost:8001/mini_ide")
     print("--------------------------------------------------")
     # Using programmatic start for maximum stability on Windows
-    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
+    uvicorn.run(app, host="127.0.0.1", port=8001, log_level="info")

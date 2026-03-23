@@ -10,6 +10,6 @@ wsgi_app = ASGIMiddleware(fast_app)
 if __name__ == "__main__":
     print("--------------------------------------------------")
     print("🚀 Mini IDE (Waitress WSGI mode) starting...")
-    print("🔗 Link: http://localhost:8000/mini_ide")
+    print("🔗 Link: http://localhost:8001/mini_ide")
     print("--------------------------------------------------")
-    serve(wsgi_app, host='127.0.0.1', port=8000, threads=8)
+    serve(wsgi_app, host='127.0.0.1', port=8001, threads=8)

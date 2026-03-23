@@ -13,10 +13,9 @@
     <!-- Monaco Editor -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
     <!-- Xterm.js Terminal -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.3.0/xterm.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.3.0/xterm.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm-addon-fit/0.8.0/xterm-addon-fit.min.js"></script>
-
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css">
+    <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
     <style>
         :root {
             --bg: #1e1e1e;
@@ -598,6 +597,16 @@
         .status-item:hover {
             opacity: 1;
         }
+        
+        .xterm .xterm-viewport,
+        .xterm .xterm-screen,
+        .xterm .xterm-helper-textarea {
+            cursor: text;
+        }
+
+        .xterm-cursor {
+            visibility: visible !important;
+        }
 
         #lspStatus {
             color: #4ec9b0;
@@ -642,21 +651,18 @@
         -->
         <div class="menu-item">File
             <div class="dropdown">
-                <!--
                 <div class="dropdown-item" onclick="pickFolder()"><span>📂 Open Folder...</span> <span
                         class="shortcut">Ctrl+K O</span></div>
                 <div class="divider"></div>
                 <div class="dropdown-item" onclick="promptCreateWorkspace()"><span>✨ New Workspace...</span></div>
                 <div class="divider"></div>
-                -->
                 <div class="dropdown-item" onclick="saveFile()"><span>💾 Save</span> <span
                         class="shortcut">Ctrl+S</span></div>
+                <div class="dropdown-item" onclick="saveAllFiles()"><span>💾 Save All</span></div>
                 <div class="dropdown-item" onclick="saveAs()"><span>💾 Save As...</span> <span
                         class="shortcut">Ctrl+Shift+S</span></div>
-                <!--
                 <div class="divider"></div>
                 <div class="dropdown-item" onclick="showWelcome()"><span>Close Workspace</span></div>
-                -->
             </div>
         </div>
         <div class="menu-item">Edit</div>
@@ -774,15 +780,13 @@
         let term = null;
         let termSocket = null;
         let termReady = false;
-        let currentInput = "";
-        let termOutputBuffer = "";
-        let termOutputWritten = 0;
-        let termEchoQueue = [];
-        let lastSentCommand = "";
-        let lastSentAt = 0;
-        const promptRe = /^PS .*?>\s*$/;
+        let termWorkspacePath = "";
+        let termConnectingPath = "";
+        let termHasConnected = false;
+        let suppressTermSocketCloseNotice = false;
         let WORKSPACE_BOOTSTRAP = false;
         const TREE_REFRESH_INTERVAL_MS = 5000;
+        const AUTOSAVE_DELAY_MS = 1200;
         let TREE_REFRESH_IN_FLIGHT = false;
         const FILE_ICONS = {
             folderClosed: '📁',
@@ -799,50 +803,150 @@
             unknown: '❔'
         };
         const PENDING_OPEN_QUEUE = [];
-        // Non-TTY backend: always use line-mode with local buffer.
-        const terminalLineMode = true;
-        const DEBUG_TERMINAL_INPUT = false;
-        const termHistory = [];
-        let termHistoryIndex = 0;
-        let promptSpaceNeeded = false;
-        let promptSpaceInserted = false;
-        let outputTail = '';
-        const promptRegex = /\/workspace\$\s*$/;
         let PYTHON_VERSION_LOCKED = false;
         let SELECTED_PYTHON_VERSION = '';
         const USER_ID = 'user1';
 
-        function filterBackendOutput(text) {
-            // Remove control characters like backspace; normalize newlines to \n.
-            let out = '';
-            for (const ch of text.replace(/\r/g, '')) {
-                if (ch === '\n' || ch === '\t') {
-                    out += ch;
-                    continue;
+        function loadScriptOnce(src) {
+            return new Promise((resolve, reject) => {
+                const existing = document.querySelector(`script[src="${src}"]`);
+                if (existing) {
+                    if (existing.dataset.loaded === 'true') {
+                        resolve();
+                        return;
+                    }
+                    existing.addEventListener('load', () => resolve(), { once: true });
+                    existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), { once: true });
+                    return;
                 }
-                const code = ch.charCodeAt(0);
-                if (code < 32 || (code >= 127 && code < 160)) {
-                    continue;
-                }
-                out += ch;
-            }
-            return out;
+
+                const script = document.createElement('script');
+                script.src = src;
+                script.async = false;
+                script.crossOrigin = 'anonymous';
+
+                script.addEventListener('load', () => {
+                    script.dataset.loaded = 'true';
+                    resolve();
+                }, { once: true });
+
+                script.addEventListener('error', () => {
+                    reject(new Error(`Failed to load ${src}`));
+                }, { once: true });
+
+                document.head.appendChild(script);
+            });
         }
 
 
-        function initTerminal() {
+        async function ensureXtermRuntime() {
+            if (window.Terminal && window.FitAddon && window.FitAddon.FitAddon) {
+                return true;
+            }
+
+            const savedDefine = window.define;
+            const savedRequire = window.require;
+
+            try {
+                // Temporarily disable AMD so xterm attaches globals to window
+                window.define = undefined;
+                window.require = undefined;
+
+                if (!document.querySelector('link[data-xterm-fallback="true"]')) {
+                    const css = document.createElement('link');
+                    css.rel = 'stylesheet';
+                    css.href = 'https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css';
+                    css.dataset.xtermFallback = 'true';
+                    document.head.appendChild(css);
+                }
+
+                await loadScriptOnce('https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js');
+                await loadScriptOnce('https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js');
+            } catch (error) {
+                console.error('[terminal] xterm runtime failed to load', error);
+            } finally {
+                // Restore Monaco/RequireJS globals
+                window.define = savedDefine;
+                window.require = savedRequire;
+            }
+
+            return !!(window.Terminal && window.FitAddon && window.FitAddon.FitAddon);
+        }
+
+        function connectTerminalSocket(fitAddon) {
+            if (!CURRENT_WORKSPACE_PATH) return;
+            if (
+                termSocket &&
+                termSocket.readyState === WebSocket.OPEN &&
+                termWorkspacePath === CURRENT_WORKSPACE_PATH
+            ) {
+                return;
+            }
+            if (
+                termSocket &&
+                termSocket.readyState === WebSocket.CONNECTING &&
+                termConnectingPath === CURRENT_WORKSPACE_PATH
+            ) {
+                return;
+            }
+
+            if (termSocket) {
+                suppressTermSocketCloseNotice = true;
+                try { termSocket.close(); } catch (_) { }
+                termSocket = null;
+            }
+
+            termWorkspacePath = CURRENT_WORKSPACE_PATH;
+            termConnectingPath = CURRENT_WORKSPACE_PATH;
+            termReady = false;
+
+            const wsProtocol = location.protocol === 'https:' ? 'wss' : 'ws';
+            termSocket = new WebSocket(`${wsProtocol}://${location.host}/ws/terminal`);
+
+            termSocket.onopen = () => {
+                termReady = true;
+                termHasConnected = true;
+                termConnectingPath = "";
+                sendTerminalResize(fitAddon);
+                term.focus();
+            };
+
+            termSocket.onmessage = (event) => {
+                if (term) term.write(event.data);
+            };
+
+            termSocket.onclose = () => {
+                termReady = false;
+                termConnectingPath = "";
+                const shouldShow = termHasConnected && !suppressTermSocketCloseNotice;
+                suppressTermSocketCloseNotice = false;
+                if (term && shouldShow) term.write('\r\n[Terminal disconnected]\r\n');
+            };
+
+            termSocket.onerror = () => {
+                if (term && termHasConnected && !suppressTermSocketCloseNotice) {
+                    term.write('\r\n[Terminal connection error]\r\n');
+                }
+            };
+        }
+
+        async function initTerminal() {
             const terminalEl = document.getElementById('terminal');
             if (!terminalEl) return;
 
             try {
+                const hasXterm = await ensureXtermRuntime();
+                if (!hasXterm) {
+                    terminalEl.textContent = 'xterm.js failed to load. Check network/CDN access.';
+                    console.error('[terminal] xterm.js unavailable; refusing to use fallback terminal for interactive shell.');
+                    return;
+                }
                 term = new Terminal({
                     cursorBlink: true,
-                    cursorStyle: 'bar',
-                    cursorInactiveStyle: 'bar',
+                    cursorStyle: 'block',
                     convertEol: true,
-                    windowsMode: /Windows/i.test(navigator.userAgent),
                     fontFamily: 'Fira Code, Consolas, JetBrains Mono, monospace',
-                    fontSize: 13,
+                    fontSize: 16,
                     lineHeight: 1.4,
                     theme: {
                         background: '#1e1e1e',
@@ -855,70 +959,21 @@
 
                 const fitAddon = new FitAddon.FitAddon();
                 term.loadAddon(fitAddon);
+                window.__miniIdeFitAddon = fitAddon;
                 term.open(terminalEl);
                 fitAddon.fit();
                 term.focus();
+                setTimeout(() => term.focus(), 0);
+
                 terminalEl.addEventListener('click', () => term.focus());
-                term.writeln('Connecting terminal...');
 
                 window.addEventListener('resize', () => {
                     fitAddon.fit();
                     sendTerminalResize(fitAddon);
                 });
 
-                const wsProtocol = location.protocol === 'https:' ? 'wss' : 'ws';
-                termSocket = new WebSocket(`${wsProtocol}://${location.host}/ws/terminal`);
+                term.onData((data) => sendTerminalData(data));
 
-                termSocket.onopen = () => {
-                    termReady = true;
-                    syncTerminalCwd();
-                    sendTerminalResize(fitAddon);
-                    term.writeln('Terminal connected. Type commands here.');
-                };
-
-                termSocket.onmessage = (event) => {
-                    if (term) writeTerminalOutput(event.data);
-                };
-
-                termSocket.onclose = () => {
-                    termReady = false;
-                    if (term) term.write('\r\n[Terminal disconnected]\r\n');
-                };
-                termSocket.onerror = () => {
-                    if (term) term.write('\r\n[Terminal connection error]\r\n');
-                };
-
-                term.onData((data) => handleTerminalInput(data));
-
-                // Safe copy/paste key handler (does not override input handling)
-                if (typeof term.attachCustomKeyEventHandler === 'function') {
-                    term.attachCustomKeyEventHandler((event) => {
-                        const isMod = event.ctrlKey || event.metaKey;
-                        if (!isMod) return true;
-                        const key = event.key.toLowerCase();
-                        if (key === 'v') {
-                            if (navigator.clipboard && navigator.clipboard.readText) {
-                                handlePaste();
-                                return false;
-                            }
-                            return true; // allow default paste if clipboard API unavailable
-                        }
-                        if (key === 'c') {
-                            handleCopyOrInterrupt();
-                            return false;
-                        }
-                        return true;
-                    });
-                }
-
-                // Clipboard fallback for non-secure contexts
-                terminalEl.addEventListener('paste', (e) => {
-                    const text = e.clipboardData?.getData('text');
-                    if (text) {
-                        insertPasteText(text);
-                        e.preventDefault();
-                    }
-                });
                 terminalEl.addEventListener('copy', (e) => {
                     if (term && term.hasSelection()) {
                         const selection = term.getSelection();
@@ -927,30 +982,11 @@
                             e.preventDefault();
                         }
                     }
-                });
+                });    
             } catch (e) {
                 terminalEl.textContent = 'Terminal failed to initialize. Check console for details.';
                 console.error(e);
             }
-        }
-
-        function handlePaste() {
-            navigator.clipboard.readText().then((text) => {
-                if (text) {
-                    insertPasteText(text);
-                }
-            }).catch(() => { });
-        }
-
-        function handleCopyOrInterrupt() {
-            if (term && term.hasSelection()) {
-                const selection = term.getSelection();
-                if (selection) {
-                    copyText(selection);
-                }
-                return;
-            }
-            sendTerminalData('\x03');
         }
 
         function copyText(text) {
@@ -968,22 +1004,6 @@
             try { document.execCommand('copy'); } catch (_) { }
             document.body.removeChild(temp);
         }
-
-        function insertPasteText(text) {
-            const cleaned = text.replace(/\r/g, '').replace(/\n/g, ' ');
-            for (const ch of cleaned) {
-                if (ch < ' ' && ch !== '\t') {
-                    continue;
-                }
-                if (currentInput.length === 0 && promptSpaceNeeded && !promptSpaceInserted) {
-                    term.write(' ');
-                    promptSpaceInserted = true;
-                }
-                currentInput += ch;
-                term.write(ch);
-            }
-        }
-
         // ────────────────────────────────────────────────────────
         // MONACO ENVIRONMENT
         // ────────────────────────────────────────────────────────
@@ -1003,340 +1023,11 @@
         // ─────────────────────────────────────────────────────────────────
         // TERMINAL (xterm.js)
 
-        // Fallback terminal if CDN fails to load xterm.js
-        if (!window.Terminal) {
-            class FallbackTerminal {
-                constructor() {
-                    this._el = null;
-                    this._dataHandler = null;
-                    this._cr = String.fromCharCode(13);
-                    this._lf = String.fromCharCode(10);
-        }
-        loadAddon() { }
-        open(el) {
-            this._el = el;
-            this._el.classList.add('terminal-fallback');
-            this._el.tabIndex = 0;
-            if (DEBUG_TERMINAL_INPUT) console.debug('[terminal] FallbackTerminal active');
-            // Fallback keyboard input handler (only when xterm.js is unavailable).
-            this._el.addEventListener('keydown', (e) => {
-                if (!this._dataHandler) return;
-                if (DEBUG_TERMINAL_INPUT) console.debug('[terminal] fallback keydown', e.key);
-                if (e.ctrlKey && e.key.toLowerCase() === 'c') {
-                    this._dataHandler(String.fromCharCode(3));
-                    e.preventDefault();
-                    return;
-                }
-                if (e.key === 'Enter') {
-                    this._dataHandler(this._cr);
-                    e.preventDefault();
-                    return;
-                }
-                if (e.key === 'Backspace') {
-                    this._dataHandler(String.fromCharCode(127));
-                    e.preventDefault();
-                    return;
-                }
-                if (e.key === 'Tab') {
-                    this._dataHandler(String.fromCharCode(9));
-                    e.preventDefault();
-                    return;
-                }
-                if (e.key.length === 1) {
-                    this._dataHandler(e.key);
-                    e.preventDefault();
-                }
-            });
-        }
-        onData(cb) { this._dataHandler = cb; }
-        write(text) {
-            if (!this._el) return;
-            const normalized = text.split(this._cr + this._lf).join(this._lf).split(this._cr).join(this._lf);
-            this._el.textContent += normalized;
-            this._el.scrollTop = this._el.scrollHeight;
-        }
-        writeln(text) { this.write(text + this._lf); }
-        focus() { if (this._el) this._el.focus(); }
-    }
-    class FallbackFitAddon {
-        fit() { }
-        get cols() { return 80; }
-        get rows() { return 24; }
-    }
-            window.Terminal = FallbackTerminal;
-            window.FitAddon = { FitAddon: FallbackFitAddon };
-        } else if (!window.FitAddon || !window.FitAddon.FitAddon) {
-            class FallbackFitAddon {
-                fit() { }
-                get cols() { return 80; }
-                get rows() { return 24; }
-            }
-            window.FitAddon = { FitAddon: FallbackFitAddon };
-        }
-
-        function stripAnsi(text) {
-            return text.replace(/\u001b\[[0-9;]*m/g, '');
-        }
-
-        function applyBackspaces(text) {
-            const out = [];
-            for (const ch of text) {
-                if (ch === '\b' || ch === '\u007f') {
-                    if (out.length) out.pop();
-                    continue;
-                }
-                out.push(ch);
-            }
-            return out.join('');
-        }
-
-        function sanitizeOutput(text) {
-            const out = [];
-            for (const ch of text) {
-                if (ch === '\b' || ch === '\u007f') {
-                    if (out.length) out.pop();
-                    continue;
-                }
-                const code = ch.charCodeAt(0);
-                if (ch === '\r' || ch === '\n' || ch === '\t' || ch === '\u001b') {
-                    out.push(ch);
-                    continue;
-                }
-                if (code < 32) {
-                    continue;
-                }
-                out.push(ch);
-            }
-            return out.join('');
-        }
-
-        function normalizeLine(text) {
-            const withoutAnsi = stripAnsi(text);
-            return sanitizeOutput(withoutAnsi).replace(/\r/g, '');
-        }
-
-        function isPromptEchoLine(strippedLine, pending) {
-            if (!pending) return false;
-            if (strippedLine === pending) return true;
-            if (strippedLine.startsWith("PS ") && strippedLine.includes("> ") && strippedLine.endsWith(pending)) {
-                return true;
-            }
-            if (strippedLine.startsWith("PS ") && strippedLine.includes(">") && strippedLine.endsWith(pending)) {
-                return true;
-            }
-            return false;
-        }
-
-        function isEchoPrefix(strippedLine, pending) {
-            if (!pending) return false;
-            if (pending.startsWith(strippedLine)) return true;
-            if (strippedLine.startsWith("PS ") && strippedLine.includes(">")) {
-                const idx = strippedLine.lastIndexOf(">");
-                const after = strippedLine.slice(idx + 1).trimStart();
-                if (after.length > 0 && pending.startsWith(after)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        function writeTerminalOutput(data) {
-            if (!term) return;
-            if (terminalLineMode) {
-                const filtered = filterBackendOutput(data);
-                const sanitized = sanitizeOutput(filtered).replace(/\r/g, '');
-                const combined = outputTail + sanitized;
-                const parts = combined.split('\n');
-                const lastLine = parts[parts.length - 1] || '';
-
-                if (promptRegex.test(lastLine)) {
-                    promptSpaceNeeded = !lastLine.endsWith('$ ');
-                    promptSpaceInserted = false;
-                }
-
-                outputTail = combined.slice(-200);
-                term.write(sanitized);
-                return;
-            }
-            termOutputBuffer += data;
-
-            while (true) {
-                const match = termOutputBuffer.match(/[\r\n]/);
-                if (!match) break;
-                const idx = match.index;
-                const line = termOutputBuffer.slice(0, idx);
-                const rest = termOutputBuffer.slice(idx);
-                const newline = rest.startsWith('\r\n') ? '\r\n' : rest[0];
-                termOutputBuffer = rest.slice(newline.length);
-
-                const alreadyWritten = termOutputWritten > 0 && termOutputWritten <= line.length;
-                const lineRemainder = alreadyWritten ? line.slice(termOutputWritten) : line;
-                const normalized = normalizeLine(line).trimEnd();
-                if (termEchoQueue.length) {
-                    const pending = termEchoQueue[0];
-                    if (isPromptEchoLine(normalized, pending)) {
-                        termEchoQueue.shift();
-                        termOutputWritten = 0;
-                        continue;
-                    }
-                }
-                if (normalized.trim().length === 0 && (line.includes('\b') || line.includes('\u007f'))) {
-                    termOutputWritten = 0;
-                    continue;
-                }
-                if (normalized && normalized === lastSentCommand && (Date.now() - lastSentAt) < 3000) {
-                    termOutputWritten = 0;
-                    continue;
-                }
-
-                if (lineRemainder) {
-                    term.write(sanitizeOutput(lineRemainder));
-                }
-                term.write(newline);
-
-                termOutputWritten = 0;
-            }
-
-            if (termOutputBuffer.length > 0) {
-                const remainder = termOutputBuffer;
-                const normalizedRemainder = normalizeLine(remainder).trimEnd();
-                if (termEchoQueue.length && isEchoPrefix(normalizedRemainder, termEchoQueue[0]) && !promptRe.test(normalizedRemainder)) {
-                    return;
-                }
-                if (termOutputWritten < termOutputBuffer.length) {
-                    const slice = termOutputBuffer.slice(termOutputWritten);
-                    term.write(sanitizeOutput(slice));
-                    termOutputWritten = termOutputBuffer.length;
-                }
-            } else {
-                termOutputWritten = 0;
-            }
-        }
-
-        function handleTerminalInput(data) {
-            if (!termReady) return;
-
-            if (terminalLineMode) {
-                if (data === '\u001b[A') { // Up
-                    if (termHistory.length && termHistoryIndex > 0) {
-                        termHistoryIndex -= 1;
-                        redrawInput(termHistory[termHistoryIndex] || '');
-                    }
-                    return;
-                }
-
-                if (data === '\u001b[B') { // Down
-                    if (termHistoryIndex < termHistory.length) {
-                        termHistoryIndex += 1;
-                        const next = termHistoryIndex < termHistory.length ? termHistory[termHistoryIndex] : '';
-                        redrawInput(next);
-                    }
-                    return;
-                }
-
-                if (data.startsWith('\u001b')) {
-                    return;
-                }
-
-                if (data === '\u0003') {
-                    sendTerminalInterrupt();
-                    currentInput = '';
-                    termHistoryIndex = termHistory.length;
-                    return;
-                }
-
-                if (data === '\r' || data === '\n') {
-                    term.write('\r\n');
-                    const line = currentInput;
-                    currentInput = '';
-                    promptSpaceInserted = false;
-
-                    if (line.length) {
-                        termHistory.push(line);
-                        termHistoryIndex = termHistory.length;
-                    }
-
-                    if (line.trim().toLowerCase() === 'chat') {
-                        sendChatStart();
-                        return;
-                    }
-
-                    sendTerminalData(line + '\n');
-                    return;
-                }
-
-                if (data === '\x08' || data === '\u007f') {
-                    if (currentInput.length > 0) {
-                        currentInput = currentInput.slice(0, -1);
-                        term.write('\b \b');
-                    }
-                    return;
-                }
-
-                for (const ch of data) {
-                    if (ch === '\x08' || ch === '\u007f') {
-                        if (currentInput.length > 0) {
-                            currentInput = currentInput.slice(0, -1);
-                            term.write('\b \b');
-                        }
-                        continue;
-                    }
-
-                    if (ch === '\r' || ch === '\n') {
-                        continue;
-                    }
-
-                    if (ch < ' ' && ch !== '\t') {
-                        continue;
-                    }
-
-                    if (currentInput.length === 0 && promptSpaceNeeded && !promptSpaceInserted) {
-                        term.write(' ');
-                        promptSpaceInserted = true;
-                    }
-
-                    currentInput += ch;
-                    term.write(ch);
-                }
-
-                return;
-            }
-
-            sendTerminalData(data);
-        }
-
-        function redrawInput(nextValue) {
-            while (currentInput.length > 0) {
-                term.write('\b \b');
-                currentInput = currentInput.slice(0, -1);
-            }
-
-            currentInput = nextValue || '';
-
-            if (currentInput.length > 0) {
-                if (promptSpaceNeeded && !promptSpaceInserted) {
-                    term.write(' ');
-                    promptSpaceInserted = true;
-                }
-                term.write(currentInput);
-            } else {
-                promptSpaceInserted = false;
-            }
-        }
-
         function sendTerminalData(data) {
             if (!termSocket || termSocket.readyState !== WebSocket.OPEN) {
-                if (term) term.write('\r\n[Terminal not connected]\r\n');
                 return;
             }
-            termSocket.send(JSON.stringify({ type: 'data', data: data }));
-        }
-
-        function sendTerminalInterrupt() {
-            if (!termSocket || termSocket.readyState !== WebSocket.OPEN) {
-                return;
-            }
-            termSocket.send(JSON.stringify({ type: 'interrupt' }));
+            termSocket.send(JSON.stringify({ type: 'input', data: data }));
         }
 
         function sendTerminalResize(fitAddon) {
@@ -1379,8 +1070,10 @@
         }
 
         function syncTerminalCwd() {
-            if (!CURRENT_WORKSPACE_PATH || !termSocket || termSocket.readyState !== WebSocket.OPEN) return;
-            termSocket.send(JSON.stringify({ type: 'chdir', data: CURRENT_WORKSPACE_PATH }));
+            if (!CURRENT_WORKSPACE_PATH) return;
+            if (!term) return;
+            const fitAddon = window.__miniIdeFitAddon;
+            connectTerminalSocket(fitAddon);
         }
 
         function terminalWriteln(text) {
@@ -1921,7 +1614,7 @@
         // WORKSPACE & FILE OPERATIONS
         // ────────────────────────────────────────────────────────
         window.onload = async () => {
-            initTerminal();
+            await initTerminal();
             connectLSP('');
             initPythonSelector();
             await refreshTree();
@@ -1934,23 +1627,18 @@
         };
 
         async function pickFolder() {
-            // Workspace open is disabled for now.
-            /*
             const res = await fetch('/pick_folder');
             const data = await res.json();
             if (data.status === 'success') {
                 CURRENT_WORKSPACE_PATH = data.current_dir;
                 hideWelcome();
-                refreshTree();
+                await refreshTree();
                 updateLSPConnection(data.current_dir);
                 syncTerminalCwd();
             }
-            */
         }
 
         async function promptCreateWorkspace() {
-            // Workspace creation is disabled for now.
-            /*
             const name = prompt('Enter workspace folder name:');
             if (!name) return;
             const res = await fetch('/create_folder_workspace', {
@@ -1962,11 +1650,13 @@
                 const data = await res.json();
                 CURRENT_WORKSPACE_PATH = data.current_dir;
                 hideWelcome();
-                refreshTree();
+                await refreshTree();
                 updateLSPConnection(data.current_dir);
                 syncTerminalCwd();
+            } else {
+                const err = await res.json().catch(() => ({}));
+                showToast('❌ Workspace creation failed: ' + (err.detail || 'Unknown error'));
             }
-            */
         }
 
         function updateLSPConnection(root) {
@@ -2200,18 +1890,48 @@
                 close.innerText = 'x';
                 close.onclick = (e) => {
                     e.stopPropagation();
-                    closeTab(path);
+                    void closeTab(path);
                 };
                 tab.appendChild(close);
 
-                tab.onclick = () => setActiveTab(path);
+                tab.onclick = () => { void setActiveTab(path); };
                 container.appendChild(tab);
             });
         }
 
-        function setActiveTab(path) {
+        function attachModelListeners(path, state) {
+            if (!state || !state.model) return;
+            state.changeListener = state.model.onDidChangeContent(debounce(() => {
+                markDirty(path, true);
+                scheduleAutosave(path);
+                if (ACTIVE_FILE === path && lspReady && monacoEditor && monacoEditor.getModel() === state.model) {
+                    sendLSPNotify('textDocument/didChange', {
+                        textDocument: { uri: getDocUri(), version: state.model.getVersionId() },
+                        contentChanges: [{ text: state.model.getValue() }]
+                    });
+                }
+            }, 250));
+        }
+
+        function createTabState(path, content) {
+            const lang = getLanguageByExtension(path);
+            const model = monaco.editor.createModel(content || '', lang);
+            const state = { model, isDirty: false, saveTimer: null, changeListener: null };
+            attachModelListeners(path, state);
+            return state;
+        }
+
+        async function setActiveTab(path) {
             const state = TAB_STATE[path];
             if (!state || !monacoEditor) return;
+
+            if (ACTIVE_FILE && ACTIVE_FILE !== path) {
+                const previous = TAB_STATE[ACTIVE_FILE];
+                if (previous && previous.isDirty) {
+                    await saveFile(ACTIVE_FILE, { silent: true });
+                }
+            }
+
             ACTIVE_FILE = path;
             if (state.model) {
                 monacoEditor.setModel(state.model);
@@ -2231,9 +1951,17 @@
             if (lspReady && editable) openDocInLSP();
         }
 
-        function closeTab(path) {
+        async function closeTab(path) {
             const state = TAB_STATE[path];
+            if (state && state.isDirty) {
+                const shouldSave = confirm(`Save changes before closing ${path.split('/').pop()}?`);
+                if (shouldSave) {
+                    const saved = await saveFile(path);
+                    if (!saved) return;
+                }
+            }
             if (state && state.saveTimer) clearTimeout(state.saveTimer);
+            if (state && state.changeListener) state.changeListener.dispose();
             if (state && state.model) state.model.dispose();
             delete TAB_STATE[path];
             OPEN_TABS = OPEN_TABS.filter(p => p !== path);
@@ -2241,7 +1969,7 @@
             if (ACTIVE_FILE === path) {
                 const next = OPEN_TABS[OPEN_TABS.length - 1];
                 if (next) {
-                    setActiveTab(next);
+                    await setActiveTab(next);
                 } else {
                     ACTIVE_FILE = '';
                     if (monacoEditor) {
@@ -2269,6 +1997,10 @@
                 return;
             }
             if (TAB_STATE[path]) {
+                await setActiveTab(path);
+                return;
+            }
+            if (TAB_STATE[path]) {
                 if (TAB_STATE[path].isDirty) {
                     setActiveTab(path);
                     return;
@@ -2287,25 +2019,37 @@
                 const content = editable ? (data.code_content || '') : '';
                 const lang = getLanguageByExtension(path);
                 const model = monaco.editor.createModel(content, lang);
-                let preview = null;
+                const state = {
+                    model,
+                    isDirty: false,
+                    saveTimer: null,
+                    changeListener: null,
+                    meta,
+                    preview: null
+                };
+                attachModelListeners(path, state);
+
                 if (meta.preview === 'image') {
-                    preview = {
+                    state.preview = {
                         type: 'image',
                         url: '/file_preview?file_name=' + encodeURIComponent(path),
                         name: meta.name || path,
                         caption: meta.size ? `Size: ${formatBytes(meta.size)}` : ''
                     };
                 } else if (meta.preview === 'binary') {
-                    preview = { type: 'message', message: data.message || 'Binary file cannot be edited.' };
+                    state.preview = { type: 'message', message: data.message || 'Binary file cannot be edited.' };
                 } else if (meta.preview === 'large') {
                     const sizeText = meta.size ? formatBytes(meta.size) : '';
-                    preview = { type: 'message', message: data.message || `File is too large to open. ${sizeText}` };
+                    state.preview = { type: 'message', message: data.message || `File is too large to open. ${sizeText}` };
                 } else if (!editable) {
-                    preview = { type: 'message', message: data.message || 'File is not editable.' };
+                    state.preview = { type: 'message', message: data.message || 'File is not editable.' };
                 }
-                TAB_STATE[path] = { model, isDirty: false, saveTimer: null, meta, preview };
+
+                TAB_STATE[path] = state;
                 OPEN_TABS.push(path);
-                setActiveTab(path);
+                await setActiveTab(path);
+            } else {
+                showToast('❌ Failed to open file: ' + (data.detail || path));
             }
         }
 
@@ -2324,7 +2068,7 @@
             const state = TAB_STATE[path];
             if (!state) return;
             if (state.saveTimer) clearTimeout(state.saveTimer);
-            state.saveTimer = setTimeout(() => autoSave(path), 2000);
+            state.saveTimer = setTimeout(() => { void autoSave(path); }, AUTOSAVE_DELAY_MS);
         }
 
         async function autoSave(path) {
@@ -2353,7 +2097,7 @@
                     errText = err.detail || errText;
                 } catch (e) { }
                 if (!options.silent) showToast('❌ ' + errText);
-                return;
+                return false;
             }
             if (state) {
                 if (state.saveTimer) clearTimeout(state.saveTimer);
@@ -2361,6 +2105,21 @@
                 markDirty(path, false);
             }
             if (!options.silent) showToast('✅ Saved: ' + path.split('/').pop());
+            return true;
+        }
+
+        async function saveAllFiles(options = {}) {
+            if (!OPEN_TABS.length) {
+                if (!options.silent) showToast('⚠️ No open files to save.');
+                return;
+            }
+            const dirtyTabs = OPEN_TABS.filter(path => TAB_STATE[path] && TAB_STATE[path].isDirty);
+            const toSave = dirtyTabs.length ? dirtyTabs : OPEN_TABS.slice();
+            const results = await Promise.all(toSave.map(path => saveFile(path, { silent: true })));
+            const successCount = results.filter(Boolean).length;
+            if (!options.silent) {
+                showToast(`✅ Saved ${successCount}/${toSave.length} files.`);
+            }
         }
 
         async function saveAs() {
@@ -2407,6 +2166,90 @@
             toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 2500);
         }
 
+        let DOCKER_CONTAINER = null;
+        const DOCKER_API = "http://127.0.0.1:8002";
+
+        async function startDockerContainer() {
+            if (!CURRENT_WORKSPACE_PATH) return showToast('⚠️ Open a workspace first!');
+            const version = document.getElementById('pythonVersionSelect')?.value || '3.12';
+            const userId = "dev";
+            const projectId = CURRENT_WORKSPACE_PATH.split(/[/\\]/).pop().replace(/\W/g, '') || "default";
+
+            try {
+                const res = await fetch(`${DOCKER_API}/start-project`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId,
+                        projectId,
+                        pythonVersion: version,
+                        projectPath: CURRENT_WORKSPACE_PATH
+                    })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    DOCKER_CONTAINER = { userId, projectId };
+                    showToast('✅ Docker Isolated Environment Started!');
+                    window.addEventListener('beforeunload', stopDockerContainer);
+                } else {
+                    showToast('❌ Docker Start Failed: ' + (data.error || 'Unknown Error'));
+                }
+            } catch (e) {
+                showToast('❌ Docker API unreachable. Is node docker_api.js running?');
+            }
+        }
+
+        async function stopDockerContainer() {
+            if (!DOCKER_CONTAINER) return;
+            try {
+                await fetch(`${DOCKER_API}/stop-project`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    keepalive: true,
+                    body: JSON.stringify(DOCKER_CONTAINER)
+                });
+            } catch (e) { }
+            DOCKER_CONTAINER = null;
+            showToast('🛑 Docker Environment Destroyed.');
+        }
+
+        async function runFile() {
+            if (!ACTIVE_FILE) return alert('Select a file first.');
+
+            const saved = await saveFile(ACTIVE_FILE, { silent: true });
+            if (!saved) return;
+
+            const normalized = ACTIVE_FILE.replace(/\\/g, '/');
+            const slashIndex = normalized.lastIndexOf('/');
+            const runDir = slashIndex >= 0 ? normalized.slice(0, slashIndex) : '.';
+            const runTarget = slashIndex >= 0 ? normalized.slice(slashIndex + 1) : normalized;
+            const command = runDir === '.'
+                ? `python "${runTarget}"`
+                : `cd "${runDir}" && python "${runTarget}"`;
+
+            if (DOCKER_CONTAINER) {
+                try {
+                    const res = await fetch(`${DOCKER_API}/execute-command`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            ...DOCKER_CONTAINER,
+                            command: `python "${runTarget}"`,
+                            workingDir: runDir === '.' ? '' : runDir
+                        })
+                    });
+                    const data = await res.json();
+                    if (data.stdout) terminalWriteln(data.stdout);
+                    if (data.stderr || data.error) {
+                        terminalWriteln(`[DOCKER ERROR] ${data.stderr || data.error}`);
+                    }
+                } catch (e) {
+                    terminalWriteln(`[DOCKER RUN ERROR: ${e}]`);
+                }
+            } else {
+                sendTerminalLine(command);
+            }
+        }
         async function promptCreate(type) {
             if (!CURRENT_WORKSPACE_PATH) {
                 const ok = await ensureWorkspace();
@@ -2417,22 +2260,23 @@
             const name = prompt(`New ${type} name (inside ${hint}):`);
             if (!name) return;
             const prefix = base ? base + '/' : '';
-            fetch('/create_item', {
+            const createdPath = (prefix + name).replace(/\\/g, '/').replace(/^\/+/, '');
+            const res = await fetch('/create_item', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: prefix + name, type })
-            }).then(async (r) => {
-                if (!r.ok) {
-                    const err = await r.json();
-                    alert(err.detail || 'Create failed');
-                    return;
-                }
-                await refreshTree();
-                if (type === 'file') {
-                    const newPath = prefix + name;
-                    openFile(newPath);
-                }
+                body: JSON.stringify({ name: createdPath, type })
             });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                showToast('❌ Create failed: ' + (err.detail || 'Unknown error'));
+                return;
+            }
+
+            await refreshTree();
+            if (type === 'file') {
+                await openFile(createdPath);
+            }
         }
 
         function replacePrefix(path, from, to) {
@@ -2464,12 +2308,14 @@
         }
 
         function updateTabsAfterRename(oldPath, newPath, isFolder) {
+            const affectedPaths = [];
             if (isFolder) {
                 const updated = {};
                 Object.keys(TAB_STATE).forEach((path) => {
                     if (path === oldPath || path.startsWith(oldPath + '/')) {
                         const nextPath = replacePrefix(path, oldPath, newPath);
                         updated[nextPath] = TAB_STATE[path];
+                        affectedPaths.push(nextPath);
                     } else {
                         updated[path] = TAB_STATE[path];
                     }
@@ -2488,11 +2334,20 @@
                 if (TAB_STATE[oldPath]) {
                     TAB_STATE[newPath] = TAB_STATE[oldPath];
                     delete TAB_STATE[oldPath];
+                    affectedPaths.push(newPath);
                 }
                 OPEN_TABS = OPEN_TABS.map((path) => (path === oldPath ? newPath : path));
                 if (ACTIVE_FILE === oldPath) ACTIVE_FILE = newPath;
             }
             Object.keys(TAB_STATE).forEach((path) => updateTabStatePath(TAB_STATE[path], path));
+
+            affectedPaths.forEach((path) => {
+                const state = TAB_STATE[path];
+                if (!state) return;
+                if (state.changeListener) state.changeListener.dispose();
+                attachModelListeners(path, state);
+            });
+
             renderTabs();
         }
 
@@ -2543,7 +2398,9 @@
             });
             if (res.ok) {
                 const toClose = OPEN_TABS.filter(p => p === SELECTED_PATH || p.startsWith(SELECTED_PATH + '/'));
-                toClose.forEach(closeTab);
+                for (const path of toClose) {
+                    await closeTab(path);
+                }
                 SELECTED_PATH = ''; SELECTED_TYPE = '';
                 refreshTree();
             } else {
@@ -2556,11 +2413,19 @@
             if (CURRENT_WORKSPACE_PATH) {
                 await fetch('/close_workspace', { method: 'POST' });
             }
+            if (termSocket) {
+                try { termSocket.close(); } catch (_) { }
+                termSocket = null;
+            }
+            termReady = false;
+            termWorkspacePath = "";
             document.getElementById('welcomeOverlay').classList.remove('hidden');
             CURRENT_WORKSPACE_PATH = ''; ACTIVE_FILE = ''; SELECTED_PATH = ''; SELECTED_TYPE = '';
             setPythonSelectorState('', false);
             if (OPEN_TABS.length) {
-                OPEN_TABS.slice().forEach(closeTab);
+                for (const path of OPEN_TABS.slice()) {
+                    await closeTab(path);
+                }
             }
             renderTabs();
         }
@@ -2578,6 +2443,16 @@
         document.addEventListener('keydown', e => {
             if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') { e.preventDefault(); saveAs(); }
             else if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveFile(); }
+            else if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 's') { e.preventDefault(); saveAllFiles(); }
+        });
+
+        window.addEventListener('beforeunload', (event) => {
+            const hasDirty = OPEN_TABS.some(path => TAB_STATE[path] && TAB_STATE[path].isDirty);
+            if (hasDirty) {
+                event.preventDefault();
+                event.returnValue = '';
+            }
+            void saveAllFiles({ silent: true });
         });
     </script>
 </body>
