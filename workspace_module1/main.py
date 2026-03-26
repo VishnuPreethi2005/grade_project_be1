@@ -20,6 +20,7 @@ from urllib.parse import parse_qs
 from collections import deque
 from typing import List, Optional, Dict, Any
 from dotenv import load_dotenv
+import websockets
 from workspace_module1.chatbot import run_chatbot_menu, ChatbotSession
 # import tkinter as tk (Moved to local scope)
 # from tkinter import filedialog (Moved to local scope)
@@ -37,6 +38,7 @@ DEFAULT_CONTAINER_SHELL: str = "/bin/sh"
 DEFAULT_WORKSPACE_NAME: str = "Workspace"
 CONTAINER_PROMPT: str = "/workspace$"
 MAX_TEXT_FILE_BYTES: int = int(os.environ.get("MAX_TEXT_FILE_BYTES", 2 * 1024 * 1024))
+LSP_BRIDGE_URL: str = os.environ.get("MINI_IDE_LSP_BRIDGE_URL", "ws://127.0.0.1:8080")
 ALLOWED_PYTHON_VERSIONS = {"3.10", "3.11", "3.12"}
 WORKSPACE_RUNTIME: Dict[str, Dict[str, str]] = {}
 
@@ -1476,6 +1478,65 @@ async def close_workspace():
 @app.get("/mini_ide")
 async def mini_ide():
     return FileResponse(os.path.join(os.path.dirname(__file__), "static", "index.html"))
+
+
+@app.websocket("/ws/lsp")
+async def lsp_ws_proxy(websocket: WebSocket):
+    await websocket.accept()
+
+    query_string = websocket.scope.get("query_string", b"").decode("utf-8")
+    upstream_url = LSP_BRIDGE_URL.rstrip("/")
+    if query_string:
+        upstream_url = f"{upstream_url}/?{query_string}"
+
+    upstream = None
+    try:
+        upstream = await websockets.connect(upstream_url)
+
+        async def browser_to_upstream():
+            while True:
+                message = await websocket.receive_text()
+                await upstream.send(message)
+
+        async def upstream_to_browser():
+            async for message in upstream:
+                if isinstance(message, bytes):
+                    await websocket.send_bytes(message)
+                else:
+                    await websocket.send_text(message)
+
+        browser_task = asyncio.create_task(browser_to_upstream())
+        upstream_task = asyncio.create_task(upstream_to_browser())
+        done, pending = await asyncio.wait(
+            {browser_task, upstream_task},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        for task in pending:
+            task.cancel()
+        for task in done:
+            if task.cancelled():
+                continue
+            exc = task.exception()
+            if exc and not isinstance(exc, WebSocketDisconnect):
+                raise exc
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        try:
+            await websocket.close(code=1011)
+        except Exception:
+            pass
+    finally:
+        if upstream is not None:
+            try:
+                await upstream.close()
+            except Exception:
+                pass
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 
 @app.websocket("/ws/terminal")

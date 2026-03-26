@@ -1354,7 +1354,8 @@
         // LSP WebSocket CLIENT
         // ────────────────────────────────────────────────────────
         function connectLSP(workspaceRoot) {
-            const wsUrl = `ws://localhost:8080/?root=${encodeURIComponent(workspaceRoot || '')}`;
+            const wsProtocol = location.protocol === 'https:' ? 'wss' : 'ws';
+            const wsUrl = `${wsProtocol}://${location.host}/ws/lsp?root=${encodeURIComponent(workspaceRoot || '')}`;
             updateLSPStatus('connecting');
 
             try {
@@ -2233,7 +2234,7 @@
                 }
             } catch (e) {
                 console.error("startDockerContainer failed:", e);
-                showToast('❌ Docker start failed on 8001. Check FastAPI backend.');
+                showToast('❌ Docker start failed. Check the unified backend on port 8000.');
             }
         }
 
