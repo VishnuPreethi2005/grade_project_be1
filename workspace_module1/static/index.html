@@ -2205,16 +2205,15 @@
         }
 
         let DOCKER_CONTAINER = null;
-        const DOCKER_API = "http://127.0.0.1:8002";
 
         async function startDockerContainer() {
             if (!CURRENT_WORKSPACE_PATH) return showToast('⚠️ Open a workspace first!');
             const version = document.getElementById('pythonVersionSelect')?.value || '3.12';
-            const userId = "dev";
+            const userId = "user1";
             const projectId = CURRENT_WORKSPACE_PATH.split(/[/\\]/).pop().replace(/\W/g, '') || "default";
 
             try {
-                const res = await fetch(`${DOCKER_API}/start-project`, {
+                const res = await fetch(`/start-project`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -2233,14 +2232,15 @@
                     showToast('❌ Docker Start Failed: ' + (data.error || 'Unknown Error'));
                 }
             } catch (e) {
-                showToast('❌ Docker API unreachable. Is node docker_api.js running?');
+                console.error("startDockerContainer failed:", e);
+                showToast('❌ Docker start failed on 8001. Check FastAPI backend.');
             }
         }
 
         async function stopDockerContainer() {
             if (!DOCKER_CONTAINER) return;
             try {
-                await fetch(`${DOCKER_API}/stop-project`, {
+                await fetch(`/stop-project`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     keepalive: true,
@@ -2267,7 +2267,7 @@
 
             if (DOCKER_CONTAINER) {
                 try {
-                    const res = await fetch(`${DOCKER_API}/execute-command`, {
+                    const res = await fetch(`/execute-command`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
