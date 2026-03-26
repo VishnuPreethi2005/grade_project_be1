@@ -20,7 +20,6 @@ from urllib.parse import parse_qs
 from collections import deque
 from typing import List, Optional, Dict, Any
 from dotenv import load_dotenv
-from workspace_module2.container_manager import start_or_reuse_container, start_or_reuse_container_for_path
 from workspace_module1.chatbot import run_chatbot_menu, ChatbotSession
 # import tkinter as tk (Moved to local scope)
 # from tkinter import filedialog (Moved to local scope)
@@ -209,6 +208,228 @@ def zip_workspace(workspace_name: str):
 
     return zip_path
 
+def _run_shell_command(cmd: str) -> Dict[str, str]:
+    process = subprocess.run(
+        cmd,
+        shell=True,
+        capture_output=True,
+        text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+    )
+    if process.returncode != 0:
+        raise RuntimeError(process.stderr.strip() or process.stdout.strip() or f"Command failed: {cmd}")
+    return {
+        "stdout": process.stdout,
+        "stderr": process.stderr,
+    }
+
+def _sanitize_container_name(value: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9_.-]", "_", str(value).strip())
+
+def _normalize_docker_mount_path(project_path: str) -> str:
+    return os.path.abspath(project_path).replace("\\", "/")
+
+def _container_name_for(user_id: str, project_id: str) -> str:
+    return f"{_sanitize_container_name(user_id)}_{_sanitize_container_name(project_id)}"
+
+def _docker_running_container_names() -> List[str]:
+    result = _run_shell_command('docker ps --format "{{.Names}}"')
+    return [line.strip() for line in result["stdout"].splitlines() if line.strip()]
+
+def _docker_all_container_names() -> List[str]:
+    result = _run_shell_command('docker ps -a --format "{{.Names}}"')
+    return [line.strip() for line in result["stdout"].splitlines() if line.strip()]
+
+def _start_project_container(user_id: str, project_id: str, python_version: str, project_path: str) -> Dict[str, str]:
+    global CURRENT_CONTAINER_NAME
+
+    if not user_id or not project_id or not python_version or not project_path:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing required fields: userId, projectId, pythonVersion, projectPath",
+        )
+
+    python_version = str(python_version).strip()
+    if python_version not in ALLOWED_PYTHON_VERSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid pythonVersion. Allowed: 3.10, 3.11, 3.12",
+        )
+
+    abs_project_path = os.path.abspath(project_path)
+    if not os.path.isdir(abs_project_path):
+        raise HTTPException(status_code=404, detail="projectPath does not exist or is not a folder")
+
+    container_name = _container_name_for(user_id, project_id)
+    image = f"ide-python-{python_version}"
+
+    try:
+        _run_shell_command("docker info")
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Docker is not running or not accessible. Please start Docker Desktop.",
+        )
+
+    try:
+        existing = _docker_all_container_names()
+        if container_name in existing:
+            running = _docker_running_container_names()
+            if container_name in running:
+                CURRENT_CONTAINER_NAME = container_name
+                return {
+                    "status": "success",
+                    "message": "Container already running",
+                    "container_name": container_name,
+                    "image": image,
+                }
+            _run_shell_command(f"docker start {shlex.quote(container_name)}")
+            CURRENT_CONTAINER_NAME = container_name
+            return {
+                "status": "success",
+                "message": "Container restarted",
+                "container_name": container_name,
+                "image": image,
+            }
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+
+    normalized_path = _normalize_docker_mount_path(abs_project_path)
+    run_cmd = (
+        "docker run -itd "
+        f"--name {shlex.quote(container_name)} "
+        '--cpus="0.5" -m 512m --pids-limit 100 '
+        f'-v "{normalized_path}:/workspace" '
+        "-w /workspace "
+        f"{shlex.quote(image)} tail -f /dev/null"
+    )
+
+    try:
+        _run_shell_command(run_cmd)
+        CURRENT_CONTAINER_NAME = container_name
+        return {
+            "status": "success",
+            "message": "Container created and started successfully",
+            "container_name": container_name,
+            "image": image,
+        }
+    except Exception as exc:
+        err_text = str(exc).lower()
+        if (
+            "not found" in err_text
+            or "manifest unknown" in err_text
+            or "pull access denied" in err_text
+        ):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Image {image} not found. Build ide-python-{python_version} first.",
+            )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to start container: {exc}",
+        )
+
+def _execute_command_in_container(user_id: str, project_id: str, command: str, working_dir: Optional[str] = None) -> Dict[str, str]:
+    if not user_id or not project_id or not command:
+        raise HTTPException(status_code=400, detail="Missing required fields")
+
+    container_name = _container_name_for(user_id, project_id)
+
+    try:
+        running = _docker_running_container_names()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to check container status: {exc}",
+        )
+
+    if container_name not in running:
+        raise HTTPException(
+            status_code=404,
+            detail="Container is not running. Please start the project first.",
+        )
+
+    command_with_cwd = command
+    if working_dir and str(working_dir).strip():
+        escaped_dir = str(working_dir).strip().replace('"', '\\"')
+        command_with_cwd = f'cd "{escaped_dir}" && {command}'
+
+    escaped_command = command_with_cwd.replace('"', '\\"')
+    exec_cmd = f'docker exec {shlex.quote(container_name)} sh -c "{escaped_command}"'
+
+    process = subprocess.run(
+        exec_cmd,
+        shell=True,
+        capture_output=True,
+        text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+    )
+
+    if process.returncode != 0:
+        raise HTTPException(
+            status_code=500,
+            detail="Command execution failed or returned error exit code",
+        )
+
+    return {
+        "status": "success",
+        "stdout": process.stdout,
+        "stderr": process.stderr,
+    }
+
+def _stop_project_container(user_id: str, project_id: str) -> Dict[str, str]:
+    global CURRENT_CONTAINER_NAME
+
+    if not user_id or not project_id:
+        raise HTTPException(status_code=400, detail="Missing required fields")
+
+    container_name = _container_name_for(user_id, project_id)
+
+    stop_process = subprocess.run(
+        f"docker stop {shlex.quote(container_name)}",
+        shell=True,
+        capture_output=True,
+        text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+    )
+    stop_err = (stop_process.stderr or "").lower()
+    if stop_process.returncode != 0 and "no such container" not in stop_err:
+        raise HTTPException(
+            status_code=500,
+            detail=stop_process.stderr.strip() or stop_process.stdout.strip() or "Failed to stop container",
+        )
+
+    rm_process = subprocess.run(
+        f"docker rm {shlex.quote(container_name)}",
+        shell=True,
+        capture_output=True,
+        text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+    )
+    rm_err = (rm_process.stderr or "").lower()
+    if rm_process.returncode != 0:
+        if "no such container" in rm_err:
+            if CURRENT_CONTAINER_NAME == container_name:
+                CURRENT_CONTAINER_NAME = None
+            return {
+                "status": "success",
+                "message": "Container already stopped and removed",
+            }
+        raise HTTPException(
+            status_code=500,
+            detail=rm_process.stderr.strip() or rm_process.stdout.strip() or "Failed to remove container",
+        )
+
+    if CURRENT_CONTAINER_NAME == container_name:
+        CURRENT_CONTAINER_NAME = None
+
+    return {
+        "status": "success",
+        "message": "Container stopped and removed successfully",
+    }
+    
 # Resolve container name from websocket query params or global/env.
 def _resolve_container_name(scope: Dict[str, Any]) -> Optional[str]:
     query_string = scope.get("query_string", b"")
@@ -240,23 +461,28 @@ def _ensure_workspace_dir() -> str:
 
 def _ensure_container_for_workspace(workspace_path: str) -> str:
     global CURRENT_CONTAINER_NAME
+
     runtime = _get_runtime(workspace_path)
     python_version = (runtime.get("python_version") or "").strip()
     if not python_version:
         raise RuntimeError("Python version not selected")
+
     user_id = runtime.get("user_id") or "user1"
     project_id = runtime.get("project_id") or (os.path.basename(workspace_path) or "workspace")
-    result = start_or_reuse_container_for_path(
-        workspace_path=workspace_path,
+
+    result = _start_project_container(
         user_id=user_id,
         project_id=project_id,
         python_version=python_version,
+        project_path=workspace_path,
     )
+
     runtime["user_id"] = user_id
     runtime["project_id"] = project_id
     runtime["python_version"] = python_version
     runtime["container_name"] = result.get("container_name") or ""
     _set_runtime(workspace_path, runtime)
+
     CURRENT_CONTAINER_NAME = runtime.get("container_name")
     return CURRENT_CONTAINER_NAME or ""
 
@@ -731,7 +957,58 @@ class SelectPythonVersionRequest(BaseModel):
     user_id: str
     project_id: str
     python_version: str
+    
+class StartProjectRequest(BaseModel):
+    userId: str
+    projectId: str
+    pythonVersion: str
+    projectPath: str
 
+class ExecuteCommandRequest(BaseModel):
+    userId: str
+    projectId: str
+    command: str
+    workingDir: Optional[str] = None
+
+class StopProjectRequest(BaseModel):
+    userId: str
+    projectId: str
+    
+class AttachLocalDatasetRequest(BaseModel):
+    workspace_name: str
+    source_file_path: str
+    
+@app.post("/attach_local_dataset")
+async def attach_local_dataset(request: AttachLocalDatasetRequest):
+    try:
+        workspace_path = _resolve_workspace_folder_from_name(request.workspace_name)
+
+        if not os.path.exists(workspace_path) or not os.path.isdir(workspace_path):
+            raise HTTPException(status_code=404, detail="Workspace not found")
+
+        source_path = os.path.abspath(request.source_file_path)
+
+        if not os.path.exists(source_path) or not os.path.isfile(source_path):
+            raise HTTPException(status_code=404, detail="Source dataset file not found")
+
+        file_name = os.path.basename(source_path)
+        target_path = os.path.join(workspace_path, file_name)
+
+        shutil.copy2(source_path, target_path)
+
+        return {
+            "status": "success",
+            "message": "Dataset attached successfully",
+            "workspace_name": request.workspace_name,
+            "file_name": file_name,
+            "target_path": target_path
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
 @app.get("/pick_folder")
 async def pick_folder():
     """Triggers a real Windows folder selection dialog and copies to WORKSPACE_ROOT if needed."""
@@ -903,6 +1180,56 @@ async def select_python_version(request: SelectPythonVersionRequest):
         "locked": True,
         "container_name": runtime.get("container_name"),
     }
+
+@app.post("/start-project")
+async def start_project(request: StartProjectRequest):
+    result = _start_project_container(
+        user_id=request.userId,
+        project_id=request.projectId,
+        python_version=request.pythonVersion,
+        project_path=request.projectPath,
+    )
+
+    workspace_abs = os.path.abspath(request.projectPath)
+    runtime = _get_runtime(workspace_abs)
+    runtime["user_id"] = request.userId
+    runtime["project_id"] = request.projectId
+    runtime["python_version"] = request.pythonVersion
+    runtime["container_name"] = result.get("container_name") or ""
+    _set_runtime(workspace_abs, runtime)
+
+    return {
+        "status": result["status"],
+        "message": result["message"],
+        "containerName": result["container_name"],
+        "image": result["image"],
+    }
+
+@app.post("/execute-command")
+async def execute_command(request: ExecuteCommandRequest):
+    result = _execute_command_in_container(
+        user_id=request.userId,
+        project_id=request.projectId,
+        command=request.command,
+        working_dir=request.workingDir,
+    )
+    return result
+
+@app.post("/stop-project")
+async def stop_project(request: StopProjectRequest):
+    result = _stop_project_container(
+        user_id=request.userId,
+        project_id=request.projectId,
+    )
+
+    workspace_path = os.path.abspath(CURRENT_DIR) if CURRENT_DIR else None
+    if workspace_path:
+        runtime = _get_runtime(workspace_path)
+        if runtime.get("user_id") == request.userId and runtime.get("project_id") == request.projectId:
+            runtime["container_name"] = ""
+            _set_runtime(workspace_path, runtime)
+
+    return result
 
 @app.post("/create_item")
 async def create_item(request: CreateItemRequest):
