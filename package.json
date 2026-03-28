@@ -1,21 +1,15 @@
 {
-  "name": "grade_be",
+  "name": "grade_project_be1",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "Node dependencies for LSP bridge and Mini IDE support",
+  "main": "lsp-bridge.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/VishnuPreethi2005/grade_project_final.git"
+    "lsp": "node lsp-bridge.js",
+    "test": "echo \"No tests specified\" && exit 0"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/VishnuPreethi2005/grade_project_final/issues"
-  },
-  "homepage": "https://github.com/VishnuPreethi2005/grade_project_final#readme",
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^5.2.1",
@@ -23,6 +17,5 @@
     "ws": "^8.19.0",
     "xterm": "^5.3.0",
     "xterm-addon-fit": "^0.8.0"
-  },
-  "description": ""
+  }
 }

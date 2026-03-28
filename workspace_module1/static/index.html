@@ -363,6 +363,23 @@
             cursor: not-allowed;
         }
 
+        .toolbar-btn {
+            background: #2d2d2d;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 4px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            transition: background .15s ease, border-color .15s ease;
+        }
+
+        .toolbar-btn:hover {
+            background: #3a3a3a;
+            border-color: #5a5a5a;
+        }
+
         #editor-container {
             flex: 1;
             background: var(--bg);
@@ -728,6 +745,7 @@
                     <option value="3.11">3.11</option>
                     <option value="3.12">3.12</option>
                 </select>
+                <button class="toolbar-btn" onclick="submitWorkspace()">Submit</button>
             </div>
             <div id="editor-container"></div>
             <div id="filePreview" class="file-preview hidden"></div>
@@ -2206,6 +2224,36 @@
         }
 
         let DOCKER_CONTAINER = null;
+
+        async function submitWorkspace() {
+            if (!CURRENT_WORKSPACE_PATH) {
+                showToast('Open a workspace first');
+                return;
+            }
+
+            const workspace_name = CURRENT_WORKSPACE_PATH.split(/[/\\]/).pop();
+            if (!workspace_name) {
+                showToast('❌ Unable to determine workspace name');
+                return;
+            }
+
+            try {
+                const res = await fetch('/zip_workspace', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ workspace_name })
+                });
+                const data = await res.json().catch(() => ({}));
+
+                if (res.ok) {
+                    showToast('✅ Workspace submitted successfully');
+                } else {
+                    showToast('❌ ' + (data.detail || data.message || 'Workspace submission failed'));
+                }
+            } catch (e) {
+                showToast('❌ ' + (e.message || 'Workspace submission failed'));
+            }
+        }
 
         async function startDockerContainer() {
             if (!CURRENT_WORKSPACE_PATH) return showToast('⚠️ Open a workspace first!');
