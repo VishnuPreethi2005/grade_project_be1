@@ -68,3 +68,5 @@ grade_fe/node_modules/
 **/venv/
 **/.venv/
 **/miniide_venv/
+logs/
+*.log
