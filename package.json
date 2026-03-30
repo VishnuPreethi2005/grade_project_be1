@@ -1,5 +1,5 @@
 {
-  "name": "grade_project_be1",
+  "name": "grade_be",
   "version": "1.0.0",
   "description": "Node dependencies for LSP bridge and Mini IDE support",
   "main": "lsp-bridge.js",
