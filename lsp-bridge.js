@@ -1,6 +1,6 @@
 /**
  * lsp-bridge.js
- * ─────────────
+ * â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
  * Spawns the pyright-langserver and bridges it to Monaco via WebSocket.
  * Run with: node lsp-bridge.js
  */
@@ -13,23 +13,62 @@ const fs = require('fs');
 const LSP_PORT = 8080;
 const PYRIGHT_BIN = path.join(__dirname, 'node_modules', '.bin', 'pyright-langserver');
 
+function getWorkspaceRoot(reqUrl) {
+    const fallbackRoot = process.cwd();
+
+    try {
+        const requestUrl = new URL(reqUrl, `http://localhost:${LSP_PORT}`);
+        const rootParam = requestUrl.searchParams.get('root');
+        return rootParam ? decodeURIComponent(rootParam) : fallbackRoot;
+    } catch (error) {
+        console.error('[LSP Bridge] Failed to parse workspace root from URL:', error.message);
+        return fallbackRoot;
+    }
+}
+
+function getPyrightLaunchConfig() {
+    const pyrightArgs = ['--stdio'];
+
+    if (process.platform === 'win32') {
+        return {
+            command: `${PYRIGHT_BIN}.cmd`,
+            args: pyrightArgs,
+            options: {
+                shell: true
+            }
+        };
+    }
+
+    return {
+        command: PYRIGHT_BIN,
+        args: pyrightArgs,
+        options: {}
+    };
+}
+
 const wss = new WebSocketServer({ port: LSP_PORT });
 console.log(`[LSP Bridge] WebSocket server started on ws://localhost:${LSP_PORT}`);
 
 wss.on('connection', (ws, req) => {
-    const workspaceRoot = req.url.replace('/?root=', '') || process.cwd();
+    const workspaceRoot = getWorkspaceRoot(req.url);
     console.log(`[LSP Bridge] Client connected. Workspace: ${workspaceRoot}`);
 
     // Spawn Pyright language server
-    const pyrightArgs = ['--stdio'];
-    const pyright = spawn(PYRIGHT_BIN, pyrightArgs, {
+    const launchConfig = getPyrightLaunchConfig();
+    console.log(`[LSP Bridge] Starting pyright with command: ${launchConfig.command} ${launchConfig.args.join(' ')}`);
+    const pyright = spawn(launchConfig.command, launchConfig.args, {
         cwd: workspaceRoot,
-        windowsHide: true
+        windowsHide: true,
+        ...launchConfig.options
     });
 
     pyright.on('error', (err) => {
         console.error('[LSP Bridge] Failed to start pyright:', err.message);
         ws.close();
+    });
+
+    pyright.stdout.once('data', () => {
+        console.log('[LSP Bridge] Pyright started successfully.');
     });
 
     pyright.on('exit', (code) => {
@@ -72,7 +111,7 @@ wss.on('connection', (ws, req) => {
         console.error('[LSP Bridge] pyright stderr:', data.toString());
     });
 
-    // Monaco → Pyright
+    // Monaco â†’ Pyright
     ws.on('message', (rawMsg) => {
         try {
             const msg = rawMsg.toString('utf8');
